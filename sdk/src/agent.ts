@@ -1,33 +1,40 @@
 /**
- * WraithAgent — main entry point
+ * WraithAgent — autonomous agent with private x402 payments
  *
- * Usage:
- * ```ts
- * import { WraithAgent } from 'wraith-agent';
+ * The correct privacy-preserving payment flow:
  *
- * const agent = new WraithAgent({
- *   adapter: 'privacy-pools',
- *   starknetRpcUrl: 'https://starknet-mainnet.infura.io/v3/...',
- * });
+ *   1. Agent pre-deposits funds into Ekubo Privacy Pool
+ *      → gets a Note (secret, nullifier, commitment)
+ *      → commitment is recorded on-chain, depositor address is visible
  *
- * // Pay an x402 API endpoint (private)
- * const result = await agent.pay('https://api.perplexity.ai/chat/completions', {
- *   amount: 3000n,   // 0.003 USDC (6 decimals)
- *   token: 'USDC',
- * });
+ *   2. Agent waits for deposit confirmation (~30-90s on Starknet)
+ *      → calls findNoteInTree() to resolve the note's leaf index
  *
- * // Get honest privacy score
- * const score = agent.getPrivacyScore();
- * console.log(score.guarantee); // 'demo' for v1, 'zk-native' for STRK20
- * ```
+ *   3. When making an x402 payment, agent generates ZK proof CLIENT-SIDE:
+ *      → fetches pool state (all Deposit events) to rebuild Merkle tree
+ *      → builds Merkle proof for its deposit (leaf at known index)
+ *      → calls snarkjs.groth16.fullProve() with:
+ *           private: (secret, nullifier, pathElements, pathIndices)
+ *           public:  recipient = API server address, amount, root
+ *      → sends ONLY { zkProof, nullifierHash, publicInputs } — NO txHash, NO secret
+ *
+ *   4. Server validates public inputs, tracks nullifierHash, submits withdrawal
+ *      → server NEVER sees (secret, nullifier) or which deposit this corresponds to
+ *
+ * Privacy properties (honest assessment):
+ *   - Depositor's address IS visible when deposit() is called on-chain
+ *   - The deposit → withdrawal LINK is hidden by the ZK proof
+ *   - Meaningful privacy requires an anonymity set of dozens+ of deposits
+ *   - Don't withdraw immediately after depositing (trivial to correlate)
+ *
+ * See docs/THREAT_MODEL.md for the complete analysis.
  */
 
-import { Account, RpcProvider } from 'starknet';
+import { Account } from 'starknet';
 import {
   WraithConfig,
   Note,
   PaymentIntent,
-  PaymentReceipt,
   PrivacyScore,
   X402PaymentProof,
 } from './types.js';
@@ -40,7 +47,7 @@ import {
   buildPaymentHeader,
   X402_SCHEME,
 } from './x402.js';
-import { encryptNoteForAPI } from './lit.js';
+import type { ProverArtifacts } from './prover.js';
 import {
   createAgentManifest,
   manifestToDataURI,
@@ -49,115 +56,165 @@ import {
 } from './erc8004.js';
 
 export class WraithAgent {
-  private adapter: IPrivacyAdapter;
-  private batcher: PaymentBatcher;
-  private config: Required<WraithConfig>;
+  private readonly adapter: IPrivacyAdapter;
+  private readonly batcher: PaymentBatcher;
+  private readonly config: Required<WraithConfig>;
 
   constructor(config: WraithConfig, account?: Account) {
     this.config = {
       starknetRpcUrl: 'https://starknet-mainnet.public.blastapi.io',
       litNetwork: 'datil',
       storachaEmail: '',
-      settlementFeeBps: 10, // 0.1%
+      settlementFeeBps: 10,
       ...config,
     } as Required<WraithConfig>;
 
-    // Select adapter
     if (config.adapter === 'strk20') {
       this.adapter = new STRK20Adapter();
     } else {
       if (!account) throw new Error('PrivacyPoolsAdapter requires an Account instance');
-      this.adapter = new PrivacyPoolsAdapter(account);
+      this.adapter = new PrivacyPoolsAdapter(
+        account,
+        undefined,
+        this.config.starknetRpcUrl
+      );
     }
 
     this.batcher = new PaymentBatcher();
   }
 
   /**
-   * Pay an x402 API endpoint with a private payment.
+   * Deposit funds into the privacy pool.
    *
-   * Automatically handles the 402 challenge/response cycle.
-   * Returns the API response after payment is verified.
+   * Returns a Note with leafIndex=-1. Call findNoteInTree() after the deposit
+   * is confirmed on-chain (~30-90s) before using the note for payments.
+   *
+   * The Note MUST be stored securely. Without it, deposited funds are lost.
+   * Do NOT send the Note to any server — the (secret, nullifier) are private.
+   */
+  async deposit(amount: bigint, token: string): Promise<{ txHash: string; note: Note }> {
+    return this.adapter.deposit(amount, token);
+  }
+
+  /**
+   * Wait for a deposit to appear in the pool and resolve its leaf index.
+   *
+   * Polls the pool's Deposit events until the note's commitment appears.
+   * Returns the updated note with leafIndex set.
+   *
+   * @param note       The note from deposit()
+   * @param maxWaitMs  Max wait time (default: 120s)
+   * @param pollMs     Poll interval (default: 5s)
+   */
+  async findNoteInTree(
+    note: Note,
+    maxWaitMs = 120_000,
+    pollMs = 5_000
+  ): Promise<Note> {
+    if (!(this.adapter instanceof PrivacyPoolsAdapter)) {
+      throw new Error('findNoteInTree is only available for PrivacyPoolsAdapter');
+    }
+
+    const deadline = Date.now() + maxWaitMs;
+
+    while (Date.now() < deadline) {
+      const leafIndex = await this.adapter.findNoteInTree(note);
+      if (leafIndex !== -1) {
+        return { ...note, leafIndex };
+      }
+      await new Promise((resolve) => setTimeout(resolve, pollMs));
+    }
+
+    throw new Error(
+      `Deposit not found in pool after ${maxWaitMs}ms. ` +
+      `depositTxHash=${note.depositTxHash}. ` +
+      `Either the transaction is still pending, or the pool address is wrong.`
+    );
+  }
+
+  /**
+   * Pay an x402 API endpoint using a pre-deposited note.
+   *
+   * This is the privacy-correct flow:
+   * 1. Probe the endpoint — expect 402 challenge
+   * 2. Generate Groth16 ZK proof client-side using the note
+   * 3. Send only { zkProof, nullifierHash, publicInputs } — no txHash, no secret
+   * 4. Retry with X-Payment-Proof header
+   *
+   * Requires:
+   * - note.leafIndex must be resolved (call findNoteInTree() first)
+   * - Circuit artifacts (.wasm and .zkey) from the trusted setup
+   *   Run: cd circuits && npm run setup
+   *
+   * Privacy guarantee:
+   * - Server learns: amount + nullifierHash (public signals)
+   * - Server does NOT learn: depositor address, which deposit, secret, nullifier
+   *
+   * @param url       The API endpoint URL
+   * @param note      Pre-deposited note (leafIndex must be != -1)
+   * @param amount    Amount to pay (must be <= note.amount)
+   * @param artifacts Paths to circuit .wasm and .zkey files
+   * @param init      Optional fetch init (headers, body, etc.)
    */
   async pay(
     url: string,
-    init: RequestInit & { amount: bigint; token: string; maxLatencyMs?: number }
+    note: Note,
+    amount: bigint,
+    artifacts: ProverArtifacts,
+    init?: RequestInit
   ): Promise<Response> {
-    // 1. Hit the endpoint — expect 402
-    const probe = await fetch(url, {
-      ...init,
-      headers: { ...init.headers },
-    });
+    if (note.leafIndex === -1) {
+      throw new Error(
+        'Note has not been resolved yet (leafIndex=-1). ' +
+        'Call findNoteInTree() after the deposit is confirmed on-chain.'
+      );
+    }
+
+    if (note.spent) {
+      throw new Error('Note is already spent. Each note can only be used once.');
+    }
+
+    // 1. Probe the endpoint — should return 402
+    const probe = await fetch(url, init);
 
     if (probe.status !== 402) {
-      // Not payment-gated, just return
+      // Not payment-gated; return as-is
       return probe;
     }
 
     const challenge = parseChallenge(probe);
     if (!challenge) {
-      throw new Error(`402 response missing valid payment challenge from ${url}`);
+      throw new Error(`402 response missing valid Wraith payment challenge from ${url}`);
     }
 
-    // 2. Deposit into privacy pool
-    const intent: PaymentIntent = {
-      url: challenge.payTo,
-      amount: init.amount,
-      token: init.token,
-      maxLatencyMs: init.maxLatencyMs,
-    };
-
-    const { txHash, note } = await this.adapter.deposit(intent.amount, intent.token);
-
-    // 3. Package proof for API
-    // In v1: we send (txHash, depositEvent) for on-chain verification
-    // Lit-encrypted (secret, nullifier) sent so API can generate withdrawal proof
-    // 3a. Encrypt (secret, nullifier) for the API so it can generate the withdrawal proof.
-    //     The API decrypts using its Starknet address via Lit Protocol.
-    //     Without this, the API cannot withdraw from the pool — funds sit there indefinitely.
-    let litCiphertext: string | undefined;
-    if (this.config.litNetwork) {
-      try {
-        const encrypted = await encryptNoteForAPI(
-          note.secret,
-          note.nullifier,
-          challenge.payTo,
-          this.config.litNetwork
-        );
-        litCiphertext = JSON.stringify(encrypted);
-      } catch (err) {
-        // Lit encryption failed — proceed without it, but warn
-        // API can still verify deposit, but cannot generate withdrawal proof
-        console.warn('[Wraith] Lit encryption failed — withdrawal proof generation will fail:', err);
-      }
-    }
+    // 2. Generate Groth16 proof CLIENT-SIDE
+    // The proof commits to: recipient = challenge.payTo (API server address)
+    // The proof reveals: nullifierHash, amount, root — nothing else
+    const paymentProof = await (this.adapter as PrivacyPoolsAdapter).generatePaymentProof(
+      note,
+      challenge.payTo,
+      amount,
+      artifacts
+    );
 
     // Attach ERC-8004 agent identity to proof (if configured)
-    let agentURI: string | undefined;
     if (this.config.erc8004) {
       const manifest = createAgentManifest(
         this.config.erc8004,
         this.config.adapter,
         this.adapter.getPrivacyScore().guarantee
       );
-      agentURI = manifestToDataURI(manifest);
+      paymentProof.agentURI = manifestToDataURI(manifest);
+      paymentProof.agentId = this.config.erc8004.agentId?.toString();
     }
 
-    const proof: X402PaymentProof = {
-      scheme: X402_SCHEME,
-      network: challenge.network,
-      txHash,
-      litCiphertext,
-      agentURI,
-      agentId: this.config.erc8004?.agentId?.toString(),
-    };
-
-    // 4. Retry request with payment proof
-    const paymentHeader = buildPaymentHeader(proof);
+    // 3. Retry with the payment proof
+    // The proof contains ONLY zkProof + publicInputs — no txHash, no litCiphertext
+    const paymentHeader = buildPaymentHeader(paymentProof);
     const result = await fetch(url, {
       ...init,
       headers: {
-        ...init.headers,
+        ...(init?.headers ?? {}),
         'X-Payment-Proof': paymentHeader,
         'X-Payment-Scheme': X402_SCHEME,
       },
@@ -167,34 +224,27 @@ export class WraithAgent {
   }
 
   /**
-   * Pay an x402 endpoint and return both the API response and an ERC-8004 receipt.
+   * Pay and return both the API response and an ERC-8004 receipt.
    *
-   * The receipt proves the agent autonomously paid for and accessed a service.
-   * It follows the ERC-8004 off-chain feedback file format and can be submitted
-   * to the Reputation Registry to build the agent's on-chain reputation.
-   *
-   * @example
-   * const { response, receipt } = await agent.payWithReceipt(url, {
-   *   amount: 3000n, token: 'USDC', poolAddress: '0x...'
-   * });
-   * // receipt.agentURI contains the ERC-8004 registration file
-   * // receipt.paymentProof.txHash is the Starknet deposit transaction
+   * The receipt follows the ERC-8004 off-chain feedback format and can be
+   * submitted to the Reputation Registry to build the agent's reputation.
    */
   async payWithReceipt(
     url: string,
-    init: RequestInit & { amount: bigint; token: string; poolAddress: string; maxLatencyMs?: number }
+    note: Note,
+    amount: bigint,
+    artifacts: ProverArtifacts,
+    init?: RequestInit
   ): Promise<{ response: Response; receipt: AgentReceipt }> {
-    const response = await this.pay(url, init);
+    const response = await this.pay(url, note, amount, artifacts, init);
 
     const receipt = generatePaymentReceipt(
-      // txHash not directly available here — caller passes poolAddress separately
-      // In a real impl, adapter.deposit() would return the pool address too
-      '',
-      'starknet',
-      init.poolAddress,
+      note.depositTxHash ?? '',
+      'starknet-mainnet',
+      '',   // pool address not exposed here; caller can access via note or adapter
       url,
-      init.amount,
-      init.token,
+      amount,
+      note.token,
       this.config.erc8004
     );
 
@@ -202,10 +252,10 @@ export class WraithAgent {
   }
 
   /**
-   * Get the ERC-8004 agent manifest for this agent.
+   * Return the ERC-8004 agent manifest for this agent.
    *
-   * The manifest can be hosted at HTTPS or stored on IPFS, then registered
-   * on the Ethereum ERC-8004 Identity Registry via:
+   * The manifest can be hosted at HTTPS or on IPFS, then registered on the
+   * Ethereum ERC-8004 Identity Registry via:
    *   identityRegistry.register(agentURI)
    *
    * Returns null if no erc8004 config was provided.
@@ -221,16 +271,13 @@ export class WraithAgent {
   }
 
   /**
-   * Get the honest privacy score for the current adapter.
-   * Print this to your users so they know what privacy they actually have.
+   * Honest privacy score for the current adapter.
+   * Print this to users so they know what privacy they actually have.
    */
   getPrivacyScore(): PrivacyScore {
     return this.adapter.getPrivacyScore();
   }
 
-  /**
-   * Get the adapter name.
-   */
   get adapterName(): string {
     return this.adapter.name;
   }

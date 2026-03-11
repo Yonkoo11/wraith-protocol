@@ -1,26 +1,27 @@
 /**
- * Wraith Protocol — Server Middleware Integration Test
+ * Wraith Protocol — Server Middleware Unit Tests
  *
- * Tests the x402 payment flow against a real devnet.
- * Requires: devnet running on :5050 with at least one deposit.
- * Run onchain.test.mjs first.
+ * Tests the correct privacy-preserving x402 flow:
+ *   - Agent generates ZK proof CLIENT-SIDE
+ *   - Server validates public inputs (recipient, amount) WITHOUT on-chain calls
+ *   - Server tracks nullifierHash to prevent replay
+ *   - Server queues pre-generated proof for async Starknet submission
  *
- * Privacy boundary verified:
- *   - middleware only receives txHash + litCiphertext, NOT plaintext secret/nullifier
- *   - verifyDepositOnChain only reads the on-chain Deposit event
- *   - plaintext secrets must NEVER appear in the queue
+ * Privacy invariants verified:
+ *   - Middleware accepts proof based on public inputs only (no txHash, no litCiphertext)
+ *   - Duplicate nullifierHash rejected (replay prevention)
+ *   - Server never sees depositor address or (secret, nullifier)
+ *   - wraith.txHash is GONE — replaced by wraith.nullifierHash
+ *
+ * No devnet required — proof validation is based on decoded public inputs.
  */
 
 import { strict as assert } from 'assert';
 import http from 'http';
 import express from 'express';
 
-// Dynamic imports so we test the actual compiled source
-const { wraithPaywall } = await import('../server/src/middleware.js');
-const { buildPaymentHeader, X402_SCHEME } = await import('../sdk/src/x402.js');
-
-const DEVNET_RPC = 'http://127.0.0.1:5050';
-const DEPOSIT_SELECTOR = '0x9149d2123147c5f43d258257fef0b7b969db78269369ebcf5ebb9eef8592f2';
+const { wraithPaywall } = await import('../server/dist/middleware.js');
+const { buildPaymentHeader, X402_SCHEME } = await import('../dist/x402.js');
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -39,17 +40,6 @@ async function test(name, fn) {
   }
 }
 
-async function rpc(method, params) {
-  const res = await fetch(DEVNET_RPC, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ jsonrpc: '2.0', method, params, id: 1 }),
-  });
-  const { result, error } = await res.json();
-  if (error) throw new Error(`RPC ${method}: ${JSON.stringify(error)}`);
-  return result;
-}
-
 async function post(url, headers, body) {
   return fetch(url, {
     method: 'POST',
@@ -58,86 +48,103 @@ async function post(url, headers, body) {
   });
 }
 
-// ── Discover pool + deposit from devnet ───────────────────────────────────
+// ── Mock proof builder ─────────────────────────────────────────────────────
+//
+// The middleware validates public inputs (recipient, amount) from the decoded
+// proof. It does NOT run Groth16 verification on the hot path (that happens
+// when pool.withdraw() is called on-chain). So we can use mock public inputs
+// in tests without a real circuit or Starknet connection.
 
-async function findLatestDeposit() {
-  const blockNumber = await rpc('starknet_blockNumber', []);
-  const { events } = await rpc('starknet_getEvents', [{
-    from_block: { block_number: 0 },
-    to_block:   { block_number: blockNumber },
-    keys:       [[DEPOSIT_SELECTOR]],
-    chunk_size: 10,
-  }]);
-  if (!events?.length) return null;
-  const event = events[events.length - 1]; // most recent
-  const amountLow  = BigInt(event.data?.[0] ?? '0');
-  const amountHigh = BigInt(event.data?.[1] ?? '0');
+const SERVER_ADDRESS = '0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7';
+const REQUIRED_AMOUNT = 3000n;
+
+function buildMockProof({
+  recipient = SERVER_ADDRESS,
+  amount = REQUIRED_AMOUNT,
+  nullifierHash = '0xdeadbeef1234567890abcdef',
+  zkProof = ['0x1', '0x2', '0x3'],  // mock felt array
+  agentId,
+  agentURI,
+} = {}) {
   return {
-    txHash:      event.transaction_hash,
-    poolAddress: event.from_address,
-    amount:      amountLow + (amountHigh << 128n),
+    scheme: X402_SCHEME,
+    network: 'starknet-mainnet',
+    zkProof,
+    nullifierHash: BigInt(nullifierHash).toString(),
+    publicInputs: {
+      root: '12345',
+      nullifierHash: BigInt(nullifierHash).toString(),
+      recipient: BigInt(recipient).toString(),
+      fee: '0',
+      amount: amount.toString(),
+      refundCommitmentHash: '0',
+      associatedSetRoot: '12345',
+    },
+    agentId,
+    agentURI,
   };
 }
 
-// ── Start a minimal demo server ────────────────────────────────────────────
+// ── Start test server ──────────────────────────────────────────────────────
 
-function startTestServer(poolAddress, requiredAmount) {
+function startTestServer(requiredAmount = REQUIRED_AMOUNT) {
   const queue = [];
+  const verified = [];
   const app = express();
   app.use(express.json());
 
   app.post('/paid', wraithPaywall({
-    amount:            requiredAmount,
-    token:             'ETH',
-    starknetRpcUrl:    DEVNET_RPC,
-    withdrawalAddress: poolAddress,
-    onVerified: (proof) => queue.push(proof),
-  }), (_req, res) => res.json({ success: true }));
+    amount: requiredAmount,
+    token: 'USDC',
+    serverAddress: SERVER_ADDRESS,
+    poolAddress: '0x456',
+    onVerified: (proof, req) => {
+      // NOTE: no txHash, no litCiphertext here — just nullifierHash and zkProof
+      verified.push({ nullifierHash: proof.nullifierHash, zkProof: proof.zkProof });
+    },
+  }), (req, res) => {
+    // Serialize bigints as strings for JSON response
+    const w = req.wraith;
+    res.json({
+      success: true,
+      wraith: w ? {
+        paid: w.paid,
+        amount: w.amount?.toString(),
+        token: w.token,
+        nullifierHash: w.nullifierHash,
+        agentId: w.agentId,
+        agentURI: w.agentURI,
+      } : undefined,
+    });
+  });
 
   return new Promise((resolve) => {
     const server = http.createServer(app);
     server.listen(0, '127.0.0.1', () => {
       const { port } = server.address();
-      resolve({ server, port, queue });
+      resolve({ server, port, queue, verified });
     });
   });
 }
 
-// ── Main ───────────────────────────────────────────────────────────────────
-
-console.log('\nWraith Protocol — Server Middleware Integration Test\n');
-
-// Guard: devnet must be running
-try {
-  const alive = await fetch(`${DEVNET_RPC}/is_alive`);
-  if (!alive.ok) throw new Error();
-} catch {
-  console.error('ERROR: devnet not running on :5050. Run onchain.test.mjs first.');
-  process.exit(1);
-}
-
-const deposit = await findLatestDeposit();
-if (!deposit) {
-  console.error('ERROR: no Deposit events on devnet. Run onchain.test.mjs first.');
-  process.exit(1);
-}
-
-console.log(`Pool:    ${deposit.poolAddress}`);
-console.log(`Tx:      ${deposit.txHash}`);
-console.log(`Amount:  ${deposit.amount} (${Number(deposit.amount) / 1e18} ETH)\n`);
-
-const { server, port, queue } = await startTestServer(deposit.poolAddress, deposit.amount);
-const BASE = `http://127.0.0.1:${port}`;
-
 // ── Tests ──────────────────────────────────────────────────────────────────
 
-await test('no proof → 402 with Wraith-Starknet-v1 challenge header', async () => {
+console.log('\nWraith Protocol — Server Middleware Tests\n');
+console.log('Testing correct privacy-preserving x402 flow:');
+console.log('  No txHash in proofs, no litCiphertext, no on-chain calls on hot path\n');
+
+const { server, port, verified } = await startTestServer();
+const BASE = `http://127.0.0.1:${port}`;
+
+// 1. Challenge format
+await test('no proof → 402 with Wraith-Starknet-v1 challenge', async () => {
   const res = await post(BASE + '/paid', {}, { prompt: 'test' });
   assert.equal(res.status, 402);
   const auth = res.headers.get('WWW-Authenticate');
   assert(auth?.startsWith('Wraith-Starknet-v1'), `got: ${auth}`);
-  assert(auth.includes(`payTo="${deposit.poolAddress}"`), `payTo missing: ${auth}`);
-  assert(auth.includes('ETH'), `token missing: ${auth}`);
+  assert(auth.includes(`payTo="${SERVER_ADDRESS}"`), `payTo missing: ${auth}`);
+  assert(auth.includes('poolAddress='), `poolAddress missing: ${auth}`);
+  assert(auth.includes('USDC'), `token missing: ${auth}`);
 });
 
 await test('wrong scheme header → 402', async () => {
@@ -156,84 +163,153 @@ await test('malformed base64 proof → 400', async () => {
   assert.equal(res.status, 400);
 });
 
-await test('missing txHash in proof → 402', async () => {
-  const header = buildPaymentHeader({ scheme: X402_SCHEME, network: 'starknet-devnet' });
+// 2. Field validation
+await test('missing zkProof → 402', async () => {
+  const proof = buildMockProof({ zkProof: [] });
+  const header = buildPaymentHeader(proof);
   const res = await post(BASE + '/paid', {
     'X-Payment-Proof':  header,
     'X-Payment-Scheme': X402_SCHEME,
   }, {});
   assert.equal(res.status, 402);
   const body = await res.json();
-  assert(body.reason?.includes('txHash'), `expected txHash error, got: ${JSON.stringify(body)}`);
+  assert(body.reason?.toLowerCase().includes('zkproof'), `expected zkProof error: ${JSON.stringify(body)}`);
 });
 
-await test('nonexistent txHash → 402 (tx not confirmed)', async () => {
-  const header = buildPaymentHeader({
-    scheme:  X402_SCHEME,
-    network: 'starknet-devnet',
-    txHash:  '0x' + '0'.repeat(63) + '1',
-    litCiphertext: JSON.stringify({ mock: true }),
-  });
+await test('missing nullifierHash → 402', async () => {
+  const proof = { ...buildMockProof(), nullifierHash: '' };
+  const header = buildPaymentHeader(proof);
   const res = await post(BASE + '/paid', {
     'X-Payment-Proof':  header,
     'X-Payment-Scheme': X402_SCHEME,
   }, {});
   assert.equal(res.status, 402);
+  const body = await res.json();
+  assert(body.reason?.toLowerCase().includes('nullifier'), `expected nullifier error: ${JSON.stringify(body)}`);
 });
 
-await test('real deposit txHash → 200 (Deposit event verified on-chain)', async () => {
-  // litCiphertext is present but mock — middleware does NOT decrypt it.
-  // Decryption only happens at withdrawal time (via Lit network).
-  // This is the core privacy boundary: middleware verifies payment without
-  // ever seeing the plaintext (secret, nullifier).
-  const header = buildPaymentHeader({
-    scheme:        X402_SCHEME,
-    network:       'starknet-devnet',
-    txHash:        deposit.txHash,
-    litCiphertext: JSON.stringify({ ciphertext: 'mock', dataToEncryptHash: 'mock' }),
-  });
+await test('wrong recipient → 402 (proof not for this server)', async () => {
+  const proof = buildMockProof({ recipient: '0x1111111111111111111111111111111111111111' });
+  const header = buildPaymentHeader(proof);
   const res = await post(BASE + '/paid', {
     'X-Payment-Proof':  header,
     'X-Payment-Scheme': X402_SCHEME,
-  }, { prompt: 'hello from agent' });
+  }, {});
+  assert.equal(res.status, 402);
+  const body = await res.json();
+  assert(body.reason?.toLowerCase().includes('recipient'), `expected recipient error: ${JSON.stringify(body)}`);
+});
+
+await test('insufficient amount → 402', async () => {
+  const proof = buildMockProof({ amount: REQUIRED_AMOUNT - 1n });
+  const header = buildPaymentHeader(proof);
+  const res = await post(BASE + '/paid', {
+    'X-Payment-Proof':  header,
+    'X-Payment-Scheme': X402_SCHEME,
+  }, {});
+  assert.equal(res.status, 402);
+  const body = await res.json();
+  assert(body.reason?.toLowerCase().includes('amount'), `expected amount error: ${JSON.stringify(body)}`);
+});
+
+// 3. Happy path
+const NULLIFIER_1 = '0x1234567890abcdef1234567890abcdef12345678';
+
+await test('valid proof → 200 (recipient+amount match server expectations)', async () => {
+  const proof = buildMockProof({ nullifierHash: NULLIFIER_1 });
+  const header = buildPaymentHeader(proof);
+  const res = await post(BASE + '/paid', {
+    'X-Payment-Proof':  header,
+    'X-Payment-Scheme': X402_SCHEME,
+  }, { prompt: 'hello' });
   const text = await res.text();
   assert.equal(res.status, 200, `got ${res.status}, body: ${text}`);
   const body = JSON.parse(text);
   assert.equal(body.success, true);
+
+  // Verify wraith fields on the request
+  assert.equal(body.wraith.paid, true);
+  assert(body.wraith.nullifierHash, 'nullifierHash missing from wraith context');
+  // txHash is gone — the server never knew which on-chain deposit this was
+  assert.equal(body.wraith.txHash, undefined, 'PRIVACY LEAK: txHash should not appear in wraith context');
 });
 
-await test('queue has 1 item; plaintext secret/nullifier never in queue', async () => {
-  assert.equal(queue.length, 1, `expected 1 item, got ${queue.length}`);
-  assert.equal(queue[0].txHash, deposit.txHash, 'wrong txHash in queue');
+// 4. Privacy invariants
+await test('verified queue: no txHash, no litCiphertext, no secret/nullifier', async () => {
+  assert(verified.length >= 1, `expected at least 1 verified proof, got ${verified.length}`);
+  for (const item of verified) {
+    assert(item.nullifierHash, 'nullifierHash missing from verified item');
+    assert(item.zkProof?.length > 0, 'zkProof missing from verified item');
 
-  // Privacy invariant: middleware must NOT have extracted plaintext secrets
-  // from the litCiphertext. The queue item should only contain the encrypted blob.
-  assert(!queue[0].secret,    'PRIVACY VIOLATION: plaintext secret in queue');
-  assert(!queue[0].nullifier, 'PRIVACY VIOLATION: plaintext nullifier in queue');
-  assert(queue[0].litCiphertext, 'litCiphertext missing from queue item');
+    // Privacy invariants
+    assert(!item.txHash,        'PRIVACY LEAK: txHash in verified queue');
+    assert(!item.litCiphertext, 'PRIVACY LEAK: litCiphertext in verified queue');
+    assert(!item.secret,        'PRIVACY LEAK: plaintext secret in verified queue');
+    assert(!item.nullifier,     'PRIVACY LEAK: plaintext nullifier in verified queue');
+    assert(!item.depositorAddress, 'PRIVACY LEAK: depositorAddress in verified queue');
+  }
 });
 
-await test('amount below required → 402 (wrong pool deposit amount)', async () => {
-  // Use the same txHash but set the required amount to MORE than was deposited.
-  // We do this by spinning up a second server with a higher required amount.
-  const { server: s2, port: p2 } = await startTestServer(
-    deposit.poolAddress,
-    deposit.amount + 1n, // one more than deposited
-  );
-  const header = buildPaymentHeader({
-    scheme:        X402_SCHEME,
-    network:       'starknet-devnet',
-    txHash:        deposit.txHash,
-    litCiphertext: JSON.stringify({ ciphertext: 'mock', dataToEncryptHash: 'mock' }),
-  });
-  const res = await post(`http://127.0.0.1:${p2}/paid`, {
+// 5. Replay prevention
+await test('same nullifierHash rejected (replay attack prevention)', async () => {
+  // NULLIFIER_1 was already spent in the "valid proof → 200" test above
+  const proof = buildMockProof({ nullifierHash: NULLIFIER_1 });
+  const header = buildPaymentHeader(proof);
+  const res = await post(BASE + '/paid', {
     'X-Payment-Proof':  header,
     'X-Payment-Scheme': X402_SCHEME,
   }, {});
-  s2.close();
-  assert.equal(res.status, 402, `expected 402 for underpayment, got ${res.status}`);
+  assert.equal(res.status, 402, `expected 402 for replay, got ${res.status}`);
   const body = await res.json();
-  assert(body.reason?.toLowerCase().includes('amount'), `expected amount error: ${JSON.stringify(body)}`);
+  assert(
+    body.reason?.toLowerCase().includes('nullifier') || body.reason?.toLowerCase().includes('spent'),
+    `expected replay error: ${JSON.stringify(body)}`
+  );
+});
+
+await test('different nullifierHash accepted (distinct payment)', async () => {
+  const NULLIFIER_2 = '0xabcdef1234567890abcdef1234567890abcdef12';
+  const proof = buildMockProof({ nullifierHash: NULLIFIER_2 });
+  const header = buildPaymentHeader(proof);
+  const res = await post(BASE + '/paid', {
+    'X-Payment-Proof':  header,
+    'X-Payment-Scheme': X402_SCHEME,
+  }, {});
+  assert.equal(res.status, 200, `expected 200 for new nullifier, got ${res.status}`);
+});
+
+// 6. ERC-8004 passthrough
+await test('ERC-8004 agentId + agentURI passed through to wraith context', async () => {
+  const NULLIFIER_3 = '0xfedcba0987654321fedcba0987654321fedcba09';
+  const proof = buildMockProof({
+    nullifierHash: NULLIFIER_3,
+    agentId: '42',
+    agentURI: 'data:application/json;base64,eyJuYW1lIjoiVGVzdEFnZW50In0=',
+  });
+  const header = buildPaymentHeader(proof);
+  const res = await post(BASE + '/paid', {
+    'X-Payment-Proof':  header,
+    'X-Payment-Scheme': X402_SCHEME,
+  }, {});
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.wraith.agentId, '42');
+  assert(body.wraith.agentURI?.startsWith('data:'), `expected data: URI, got: ${body.wraith.agentURI}`);
+});
+
+// 7. Overpayment allowed
+await test('overpayment accepted (amount > required)', async () => {
+  const NULLIFIER_4 = '0x1111111111111111111111111111111111111111';
+  const proof = buildMockProof({
+    nullifierHash: NULLIFIER_4,
+    amount: REQUIRED_AMOUNT * 10n,  // paying 10x the required amount
+  });
+  const header = buildPaymentHeader(proof);
+  const res = await post(BASE + '/paid', {
+    'X-Payment-Proof':  header,
+    'X-Payment-Scheme': X402_SCHEME,
+  }, {});
+  assert.equal(res.status, 200, `expected 200 for overpayment, got ${res.status}`);
 });
 
 // ── Results ────────────────────────────────────────────────────────────────
@@ -243,16 +319,20 @@ server.close();
 console.log(`\n${'─'.repeat(60)}`);
 console.log(`Results: ${pass} passed, ${fail} failed\n`);
 
-if (fail > 0) {
-  process.exit(1);
-}
+if (fail > 0) process.exit(1);
 
 console.log('VERIFIED:');
-console.log('  402 challenge format correct (scheme, token, payTo)');
-console.log('  Malformed/missing proofs rejected before any RPC call');
-console.log('  Real Deposit event accepted (correct selector, u256 amount)');
-console.log('  Underpayment rejected correctly');
-console.log('  Queue populated; plaintext (secret, nullifier) never exposed');
-console.log('\nNOT TESTED (requires live Lit Datil network):');
-console.log('  processWithdrawal() → getLitSessionSigs() → decryptNoteFromAgent()');
-console.log('  Full withdrawal queue flush → pool.withdraw()');
+console.log('  402 challenge format correct (scheme, token, payTo, poolAddress)');
+console.log('  Malformed/missing proofs rejected before any processing');
+console.log('  Wrong recipient rejected (proof not for this server)');
+console.log('  Insufficient amount rejected');
+console.log('  Valid proof accepted (public inputs match expectations)');
+console.log('  Replay attack prevented (duplicate nullifierHash rejected)');
+console.log('  Different nullifierHashes accepted as distinct payments');
+console.log('  ERC-8004 identity passed through to request context');
+console.log('  Overpayment accepted');
+console.log('  Privacy invariants: no txHash, litCiphertext, secret, or depositor in queue');
+console.log('\nNOT TESTED (requires live Starknet devnet + circuit artifacts):');
+console.log('  Groth16 proof generation (client-side, requires .wasm + .zkey)');
+console.log('  pool.withdraw() submission via WithdrawalQueue');
+console.log('  Full on-chain deposit → proof → withdrawal flow');

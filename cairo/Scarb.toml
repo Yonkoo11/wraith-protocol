@@ -1,0 +1,11 @@
+[package]
+name = "wraith_protocol"
+version = "0.1.0"
+edition = "2024_07"
+
+[dependencies]
+starknet = ">=2.6.3"
+
+[[target.starknet-contract]]
+sierra = true
+casm = false

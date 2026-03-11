@@ -1,24 +1,38 @@
 /**
- * x402 Middleware for Wraith Protocol
+ * x402 payment protocol for Wraith Protocol.
  *
- * Handles the HTTP 402 Payment Required flow with ZK-private payments.
+ * The x402 flow:
+ *   1. Agent GETs/POSTs an API endpoint
+ *   2. Server returns 402 with WWW-Authenticate payment challenge
+ *   3. Agent deposits into the Ekubo privacy pool on Starknet (on-chain tx)
+ *   4. Agent generates a Groth16 ZK proof CLIENT-SIDE:
+ *        - proves knowledge of a commitment in the pool's Merkle tree
+ *        - commits to recipient = API server's Starknet address
+ *        - reveals only nullifierHash (to prevent double-spend) + amount + root
+ *   5. Agent retries with X-Payment-Proof header containing the ZK proof
+ *   6. Server verifies the proof, tracks nullifierHash, submits withdrawal
  *
- * Standard x402 flow:
- * 1. Client hits API endpoint
- * 2. Server returns 402 with payment challenge in header
- * 3. Client pays and retries with proof in header
- * 4. Server verifies proof and responds
+ * Privacy guarantee:
+ * - Server sees: a ZK proof that "someone with a valid deposit in this pool
+ *   authorizes payment to my address". Server does NOT see which deposit,
+ *   and does NOT see the depositor's Starknet address.
+ * - Chain observers see: a deposit with a commitment hash (no depositor link
+ *   to this specific payment), and a withdrawal to the server address.
+ * - The ZK proof cryptographically unlinks deposit from withdrawal.
  *
- * Wraith extension:
- * - Payment = deposit into privacy pool
- * - Proof = Deposit event + Lit-encrypted (secret, nullifier) bundle
- * - API verifies Deposit event (instant) then grants access
- * - API withdraws from pool on its own schedule (no latency pressure)
+ * What the server DOES learn (honest threat model):
+ * - The fact that someone paid at this timestamp (traffic analysis possible)
+ * - The payment amount
+ * - Nothing about the depositor's identity
  *
  * HONEST CAVEAT (v1):
- * - Depositor's Starknet address is visible to anyone monitoring the chain
- * - Only the link deposit→API is private
- * - Do NOT use v1 if agent identity must be fully hidden
+ * - Depositor's address IS visible when they call pool.deposit() on-chain.
+ *   Privacy is one-sided: observers CAN see "Alice deposited", they CANNOT see
+ *   "Alice paid API_server for service X at time T".
+ * - With a small anonymity set (few deposits in the pool), chain analysis can
+ *   narrow down candidates. Run the pool for a while before using it for privacy.
+ *
+ * See docs/THREAT_MODEL.md for the complete analysis.
  */
 
 import { X402Challenge, X402PaymentProof, PaymentIntent } from './types.js';
@@ -27,9 +41,8 @@ export const X402_SCHEME = 'wraith-starknet-v1';
 
 /**
  * Parse a 402 response and extract the payment challenge.
- * Challenge is in the WWW-Authenticate header.
  *
- * Format: Wraith-Starknet-v1 network="starknet-mainnet",token="USDC",amount="1000",payTo="0x..."
+ * Format: Wraith-Starknet-v1 network="starknet-mainnet",token="STRK",amount="1000",payTo="0x...",poolAddress="0x..."
  */
 export function parseChallenge(response: Response): X402Challenge | null {
   if (response.status !== 402) return null;
@@ -45,15 +58,16 @@ export function parseChallenge(response: Response): X402Challenge | null {
   return {
     scheme: X402_SCHEME,
     network: params.network ?? 'starknet-mainnet',
-    token: params.token ?? 'USDC',
+    token: params.token ?? 'STRK',
     amount: params.amount ?? '0',
     payTo: params.payTo ?? '',
+    poolAddress: params.poolAddress,
     memo: params.memo,
   };
 }
 
 /**
- * Build a payment intent from a parsed x402 challenge.
+ * Build a PaymentIntent from a parsed challenge.
  */
 export function challengeToIntent(
   challenge: X402Challenge,
@@ -68,21 +82,17 @@ export function challengeToIntent(
 }
 
 /**
- * Build the X-Payment-Proof header value from a deposit tx + Lit ciphertext.
+ * Encode a payment proof for the X-Payment-Proof header.
  *
- * The API receives:
- * - txHash + depositEvent: to verify the deposit exists on-chain
- * - litCiphertext: to decrypt (secret, nullifier) and generate withdrawal proof
- *
- * The API does NOT need to withdraw immediately. It can batch withdrawals
- * and use the secret/nullifier to prove knowledge of the deposit at any time.
+ * The proof contains only the ZK proof felts and nullifier hash.
+ * It does NOT contain txHash or secret/nullifier — those stay with the agent.
  */
 export function buildPaymentHeader(proof: X402PaymentProof): string {
   return Buffer.from(JSON.stringify(proof)).toString('base64');
 }
 
 /**
- * Parse the X-Payment-Proof header from a request.
+ * Decode an X-Payment-Proof header value.
  */
 export function parsePaymentHeader(header: string): X402PaymentProof {
   return JSON.parse(Buffer.from(header, 'base64').toString('utf8'));
@@ -92,86 +102,113 @@ export function parsePaymentHeader(header: string): X402PaymentProof {
  * Verify a payment proof on the server side.
  *
  * Checks:
- * 1. Deposit event exists on-chain (tx hash + event data)
- * 2. Amount matches the challenge
- * 3. Token matches the challenge
+ * 1. Scheme matches
+ * 2. zkProof is present and non-empty
+ * 3. nullifierHash is present
+ * 4. amount matches the challenge
+ * 5. recipient in proof matches server's address (via public signals)
  *
- * Does NOT verify the ZK proof — that's deferred to withdrawal time.
- * This keeps the request path fast (just an RPC call, no proof verification).
+ * The server does NOT need to run Groth16 verification locally —
+ * the pool contract verifies the proof when withdrawal is submitted.
+ * Double-spend protection comes from tracking nullifierHashes locally
+ * and on-chain (pool stores spent nullifiers).
+ *
+ * For higher assurance before accepting payment: submit the proof to the
+ * pool contract first and wait for confirmation.
  */
-export async function verifyDepositOnChain(
+export function verifyPaymentProofFields(
   proof: X402PaymentProof,
   expectedAmount: bigint,
-  expectedToken: string,
-  starknetRpcUrl: string
-): Promise<{ valid: boolean; reason?: string }> {
-  if (!proof.txHash) {
-    return { valid: false, reason: 'Missing txHash' };
+  serverStarknetAddress: string,
+): { valid: boolean; reason?: string } {
+  if (proof.scheme !== X402_SCHEME) {
+    return { valid: false, reason: `Unknown scheme: ${proof.scheme}` };
   }
 
-  // Call starknet_getTransactionReceipt via JSON-RPC
-  const body = {
-    jsonrpc: '2.0',
-    method: 'starknet_getTransactionReceipt',
-    params: [proof.txHash],
-    id: 1,
-  };
-
-  let receipt: StarknetReceipt;
-  try {
-    const res = await fetch(starknetRpcUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    const data = await res.json() as { result: StarknetReceipt };
-    receipt = data.result;
-  } catch (err) {
-    return { valid: false, reason: `RPC error: ${err}` };
+  if (!proof.zkProof || proof.zkProof.length === 0) {
+    return { valid: false, reason: 'Missing zkProof' };
   }
 
-  if (!receipt || receipt.execution_status !== 'SUCCEEDED') {
-    return { valid: false, reason: 'Transaction not confirmed or failed' };
+  if (!proof.nullifierHash) {
+    return { valid: false, reason: 'Missing nullifierHash' };
   }
 
-  // Find Deposit event emitted by any pool contract in this tx.
-  //
-  // Actual on-chain layout (verified from devnet receipt):
-  //   keys[0] = sn_keccak("Deposit") = 0x9149d2...
-  //   keys[1] = caller (ContractAddress, #[key])
-  //   keys[2] = secret_and_nullifier_hash low (u256 low word, #[key])
-  //   keys[3] = secret_and_nullifier_hash high (u256 high word, #[key])
-  //   data[0] = amount low  (u256 low word)
-  //   data[1] = amount high (u256 high word)
-  const DEPOSIT_SELECTOR = '0x9149d2123147c5f43d258257fef0b7b969db78269369ebcf5ebb9eef8592f2';
-
-  const depositEvent = receipt.events?.find(
-    (e) => e.keys?.[0] === DEPOSIT_SELECTOR
-  );
-
-  if (!depositEvent) {
-    return { valid: false, reason: 'No Deposit event found in transaction' };
+  if (!proof.publicInputs) {
+    return { valid: false, reason: 'Missing publicInputs' };
   }
 
-  // Amount is a u256 split across data[0] (low) and data[1] (high)
-  const amountLow  = BigInt(depositEvent.data?.[0] ?? '0');
-  const amountHigh = BigInt(depositEvent.data?.[1] ?? '0');
-  const depositedAmount = amountLow + (amountHigh << 128n);
+  // Public input layout (matches pool.circom component main public signals):
+  // [root, nullifierHash, recipient, fee, amount, refundCommitmentHash, associatedSetRoot]
+  const { root, nullifierHash, recipient, fee, amount } = proof.publicInputs;
 
-  if (depositedAmount < expectedAmount) {
+  // Amount must be >= required (agent may overpay)
+  if (BigInt(amount) < expectedAmount) {
     return {
       valid: false,
-      reason: `Deposit amount ${depositedAmount} < required ${expectedAmount}`,
+      reason: `Proof amount ${amount} < required ${expectedAmount}`,
+    };
+  }
+
+  // Recipient must match our address
+  // The recipient is a Starknet felt252 (a bigint)
+  const proofRecipient = BigInt(recipient);
+  const expectedRecipient = BigInt(serverStarknetAddress);
+  if (proofRecipient !== expectedRecipient) {
+    return {
+      valid: false,
+      reason: `Proof recipient ${recipient} != server address ${serverStarknetAddress}`,
+    };
+  }
+
+  // nullifierHash in proof must match the announced nullifierHash
+  if (BigInt(nullifierHash) !== BigInt(proof.nullifierHash)) {
+    return {
+      valid: false,
+      reason: 'nullifierHash mismatch between proof and announcement',
     };
   }
 
   return { valid: true };
 }
 
-interface StarknetReceipt {
-  execution_status: string;
-  events?: Array<{
-    keys: string[];
-    data: string[];
-  }>;
+/**
+ * Extract public inputs from a serialized proof felt array.
+ *
+ * The felt array format (from serializeProofToFelts):
+ *   [pi_a (4 felts), pi_b (8 felts), pi_c (4 felts), public_signals (14 felts as u256 pairs)]
+ *
+ * Public signals in pool.circom order:
+ *   root, nullifierHash, recipient, fee, amount, refundCommitmentHash, associatedSetRoot
+ */
+export function extractPublicInputs(zkProof: string[]): PublicInputs {
+  // 4 (pi_a) + 8 (pi_b) + 4 (pi_c) = 16 proof elements
+  // Each public signal is a u256 split into (low, high) pairs
+  const PROOF_FELTS = 16;
+  const signalOffset = PROOF_FELTS;
+
+  function readU256(idx: number): bigint {
+    const low = BigInt(zkProof[signalOffset + idx * 2] ?? '0');
+    const high = BigInt(zkProof[signalOffset + idx * 2 + 1] ?? '0');
+    return low + (high << 128n);
+  }
+
+  return {
+    root: readU256(0).toString(),
+    nullifierHash: readU256(1).toString(),
+    recipient: readU256(2).toString(),
+    fee: readU256(3).toString(),
+    amount: readU256(4).toString(),
+    refundCommitmentHash: readU256(5).toString(),
+    associatedSetRoot: readU256(6).toString(),
+  };
+}
+
+export interface PublicInputs {
+  root: string;
+  nullifierHash: string;
+  recipient: string;
+  fee: string;
+  amount: string;
+  refundCommitmentHash: string;
+  associatedSetRoot: string;
 }

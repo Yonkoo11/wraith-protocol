@@ -1,12 +1,25 @@
 /**
- * Demo API server with Wraith x402 paywall
+ * Demo API server with Wraith x402 paywall (correct privacy-preserving flow)
  *
- * Simulates a paid AI API endpoint (like Perplexity) that accepts
- * Wraith private payments instead of traditional credit card billing.
+ * This server accepts payments where the agent generates the ZK proof CLIENT-SIDE.
+ * The server:
+ *   1. Issues a 402 challenge with payment details (amount, token, serverAddress, poolAddress)
+ *   2. Receives X-Payment-Proof containing { zkProof, nullifierHash, publicInputs }
+ *   3. Validates public inputs (recipient = serverAddress, amount >= required)
+ *   4. Tracks nullifierHash to prevent replay
+ *   5. Queues the pre-generated ZK proof for async Starknet submission
+ *
+ * What this server does NOT do (vs old design):
+ *   - Does NOT receive txHash or litCiphertext
+ *   - Does NOT call Lit Protocol to decrypt secrets
+ *   - Does NOT generate ZK proofs server-side
+ *   - Does NOT look up depositor addresses
  *
  * Run:
- *   cd server && npm run dev
- *   # Then run the langchain-agent example to test
+ *   export API_STARKNET_ADDRESS=0x...
+ *   export API_STARKNET_PRIVATE_KEY=0x...
+ *   export POOL_ADDRESS=0x...
+ *   tsx server/src/demo-server.ts
  */
 
 import express, { type Request, type Response } from 'express';
@@ -17,12 +30,10 @@ import { WithdrawalQueue } from './withdrawal-queue.js';
 const app = express();
 app.use(express.json());
 
-const STARKNET_RPC    = process.env.STARKNET_RPC_URL        ?? 'http://127.0.0.1:5050';
-const API_ADDRESS     = process.env.API_STARKNET_ADDRESS    ?? '';
-const API_PK          = process.env.API_STARKNET_PRIVATE_KEY ?? '';
-const POOL_ADDRESS    = process.env.POOL_ADDRESS             ?? '';
-const CIRCUIT_WASM    = process.env.CIRCUIT_WASM_PATH        ?? '../circuits/pool_js/pool.wasm';
-const CIRCUIT_ZKEY    = process.env.CIRCUIT_ZKEY_PATH        ?? '../circuits/target/pool_final.zkey';
+const STARKNET_RPC = process.env.STARKNET_RPC_URL          ?? 'http://127.0.0.1:5050';
+const API_ADDRESS  = process.env.API_STARKNET_ADDRESS      ?? '';
+const API_PK       = process.env.API_STARKNET_PRIVATE_KEY  ?? '';
+const POOL_ADDRESS = process.env.POOL_ADDRESS              ?? '';
 
 if (!API_ADDRESS || !API_PK || !POOL_ADDRESS) {
   console.error(
@@ -34,37 +45,37 @@ if (!API_ADDRESS || !API_PK || !POOL_ADDRESS) {
 const provider = new RpcProvider({ nodeUrl: STARKNET_RPC });
 const account  = new Account(provider, API_ADDRESS, API_PK);
 
-// Withdrawal queue — processes accumulated payments every 5 minutes
+// Withdrawal queue — submits pre-generated proofs to Starknet every 5 minutes
 const withdrawalQueue = new WithdrawalQueue({
   account,
-  poolAddress:      POOL_ADDRESS,
-  circuitWasmPath:  CIRCUIT_WASM,
-  circuitZkeyPath:  CIRCUIT_ZKEY,
-  rpcUrl:           STARKNET_RPC,
+  poolAddress: POOL_ADDRESS,
+  rpcUrl:      STARKNET_RPC,
 });
 withdrawalQueue.start();
 
-// -------------------------------------------------------------------------
-// Paid endpoint: POST /v1/chat/completions
-// Simulates an OpenAI-compatible LLM API with 0.003 USDC per request
-// -------------------------------------------------------------------------
+// ── Paid endpoint ──────────────────────────────────────────────────────────
+
+const REQUIRED_AMOUNT = 3000n;  // 0.003 USDC (6 decimals)
+
 app.post(
   '/v1/chat/completions',
   wraithPaywall({
-    amount: 3000n,     // 0.003 USDC
-    token: 'USDC',
-    starknetRpcUrl: STARKNET_RPC,
-    withdrawalAddress: API_ADDRESS,
+    amount:        REQUIRED_AMOUNT,
+    token:         'USDC',
+    serverAddress: API_ADDRESS,
+    poolAddress:   POOL_ADDRESS,
     onVerified: (proof) => {
-      withdrawalQueue.enqueue(proof, 3000n);
+      // withdrawalQueue.enqueue() is called automatically by the middleware
+      // if withdrawal config is provided. For manual control:
+      if (proof.zkProof && proof.zkProof.length > 0) {
+        withdrawalQueue.enqueue(proof.zkProof, proof.nullifierHash, REQUIRED_AMOUNT);
+      }
     },
   }),
   (req: Request, res: Response) => {
-    // In a real implementation, forward to the underlying LLM here
     const messages = (req.body.messages ?? []) as Array<{ role: string; content: string }>;
     const lastMessage = messages[messages.length - 1]?.content ?? '';
 
-    // Demo response
     res.json({
       id: `wraith-demo-${Date.now()}`,
       object: 'chat.completion',
@@ -74,8 +85,7 @@ app.post(
           index: 0,
           message: {
             role: 'assistant',
-            content: `[Demo response to: "${lastMessage.slice(0, 50)}..."] ` +
-              `Payment verified. This response would come from the underlying LLM.`,
+            content: `[Demo response to: "${lastMessage.slice(0, 50)}"]`,
           },
           finish_reason: 'stop',
         },
@@ -85,26 +95,24 @@ app.post(
   }
 );
 
-// -------------------------------------------------------------------------
-// Health check
-// -------------------------------------------------------------------------
+// ── Health check ───────────────────────────────────────────────────────────
+
 app.get('/health', (_req: Request, res: Response) => {
   res.json({
     status: 'ok',
-    withdrawalQueueLength: withdrawalQueue.queueLength(),
-    proverIntegrated: false, // honest: prover is not wired up yet
+    pendingWithdrawals: withdrawalQueue.pendingCount,
+    serverAddress: API_ADDRESS,
+    poolAddress: POOL_ADDRESS,
   });
 });
 
-// -------------------------------------------------------------------------
-// Start
-// -------------------------------------------------------------------------
+// ── Start ──────────────────────────────────────────────────────────────────
+
 const PORT = parseInt(process.env.PORT ?? '3000');
 app.listen(PORT, () => {
-  console.log(`Wraith demo server running on port ${PORT}`);
+  console.log(`Wraith demo server on port ${PORT}`);
   console.log(`POST /v1/chat/completions — requires 0.003 USDC Wraith payment`);
   console.log(`GET  /health — server status`);
-  console.log(`\nHonest status: prover not integrated. Deposits accepted, withdrawals queued but not executed.`);
 });
 
 export { app };
