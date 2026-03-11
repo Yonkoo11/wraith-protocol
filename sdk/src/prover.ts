@@ -30,6 +30,7 @@
  */
 
 import { poseidonHash, computeNullifierHash } from './crypto/poseidon.js';
+import { ZERO_VALUES } from './crypto/merkle-tree.js';
 
 export interface ProverArtifacts {
   /** Path to pool.wasm (compiled circuit) */
@@ -215,19 +216,18 @@ export function buildSingleDepositMerkleProof(
   leafHash: bigint,
   depth: number = 24
 ): { pathElements: bigint[]; pathIndices: number[]; root: bigint } {
-  // Zero leaf value at each level (poseidon(0, 0))
-  const ZERO_LEAF = poseidonHash(0n, 0n);
-
   const pathElements: bigint[] = [];
   const pathIndices: number[] = [];
 
-  // For a single deposit at index 0, all path elements are zero-value nodes
-  // and all indices are 0 (left)
+  // For a single deposit at index 0, all siblings are the zero-value nodes
+  // at their respective levels: ZERO_VALUES[level] = H(ZERO_VALUES[level-1], ZERO_VALUES[level-1]).
+  // This matches the pool contract's Merkle tree exactly.
   let currentHash = leafHash;
   for (let level = 0; level < depth; level++) {
-    pathElements.push(ZERO_LEAF);
+    const sibling = ZERO_VALUES[level];
+    pathElements.push(sibling);
     pathIndices.push(0); // leaf is always left child at each level
-    currentHash = poseidonHash(currentHash, ZERO_LEAF);
+    currentHash = poseidonHash(currentHash, sibling);
   }
 
   return { pathElements, pathIndices, root: currentHash };
