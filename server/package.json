@@ -1,7 +1,37 @@
 {
   "name": "wraith-server",
   "version": "0.1.0",
+  "description": "Express middleware for accepting Wraith Protocol ZK payments",
   "type": "module",
+  "main": "dist/middleware.js",
+  "types": "dist/middleware.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/middleware.js",
+      "types": "./dist/middleware.d.ts"
+    },
+    "./nullifier-set": {
+      "import": "./dist/nullifier-set.js",
+      "types": "./dist/nullifier-set.d.ts"
+    },
+    "./withdrawal-queue": {
+      "import": "./dist/withdrawal-queue.js",
+      "types": "./dist/withdrawal-queue.d.ts"
+    }
+  },
+  "files": [
+    "dist/",
+    "README.md"
+  ],
+  "keywords": [
+    "starknet",
+    "privacy",
+    "x402",
+    "zk",
+    "express",
+    "middleware"
+  ],
+  "license": "MIT",
   "scripts": {
     "dev": "tsx src/demo-server.ts",
     "build": "tsc"

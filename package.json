@@ -5,6 +5,36 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./prover": {
+      "import": "./dist/prover.js",
+      "types": "./dist/prover.d.ts"
+    },
+    "./adapters/privacy-pools": {
+      "import": "./dist/adapters/privacy-pools.js",
+      "types": "./dist/adapters/privacy-pools.d.ts"
+    },
+    "./adapters/strk20": {
+      "import": "./dist/adapters/strk20.js",
+      "types": "./dist/adapters/strk20.d.ts"
+    },
+    "./crypto/merkle-tree": {
+      "import": "./dist/crypto/merkle-tree.js",
+      "types": "./dist/crypto/merkle-tree.d.ts"
+    }
+  },
+  "files": [
+    "dist/",
+    "README.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/wraith-protocol/wraith-protocol"
+  },
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
