@@ -11,6 +11,7 @@ export {
   parsePaymentHeader,
   verifyPaymentProofFields,
   extractPublicInputs,
+  deserializeProofFromFelts,
   X402_SCHEME,
 } from './x402.js';
 export type { PublicInputs } from './x402.js';

@@ -1,6 +1,6 @@
 # Wraith Protocol — Progress
 
-## Status: BACKEND COMPLETE + FRONTEND BUILT (2026-03-12)
+## Status: E2E VERIFIED + COMMITTED (2026-03-12)
 
 ## What's Done
 
@@ -55,6 +55,25 @@ Tests: tests/onchain.test.mjs — 8/8 PASSED with deposit fix
 - garaga 0.15.3 calldata (2918 felts) generated correctly
 - withdraw() accepted on-chain, tokens transferred
 
+### Bug Fixes (2nd session, 2026-03-12)
+6. CRITICAL: extractPublicInputs() — wrong signal index for amount vs refundCommitmentHash.
+   snarkjs orders public signals by definition position in component body, NOT the main
+   public [] declaration. In pool.circom, refundCommitmentHash is defined before amount.
+   Correct indices: refundCommitmentHash=4, amount=5 (was reversed: amount=4, rch=5).
+   This caused "Proof amount 0 < required X" on every real proof submission.
+   Fixed in sdk/src/x402.ts + comment updated with explanation.
+
+### E2E HTTP Payment Test — 28/28 PASSED (2026-03-12)
+Tests: tests/e2e.test.mjs — 28/28 PASSED (COMMITTED)
+- Real devnet deposit (ETH approve + pool.deposit with correct H(s,n))
+- Real Groth16 proof generation via snarkjs (~6s), verified locally
+- Real HTTP wraithPaywall middleware (Express server)
+- 402 challenge: correct scheme, payTo, poolAddress
+- 200 response: server accepted real ZK proof, served protected resource
+- Privacy invariants: no depositor address, txHash, or secret in withdrawal queue
+- Replay prevention: same nullifier on retry → 402
+Run: node scripts/rpc-proxy.mjs & && node tests/e2e.test.mjs
+
 ### Frontend — BUILT (not deployed)
 - docs/index.html: GitHub Pages static site
 - Sections: hero (animated terminal), how-it-works (5-step flow), privacy matrix,
@@ -87,12 +106,13 @@ scripts/rpc-proxy.mjs
 - Run: `node scripts/rpc-proxy.mjs &` then `node tests/onchain.test.mjs`
 
 ## What's NOT Done (remaining gaps)
-1. **GitHub remote not configured** — need to push to GitHub to deploy Pages
-2. **Server-side Lit session signatures** — getLitSessionSigs() still throws stub error
-3. **No agent→API→withdrawal full integration test** — SDK+server not tested together
-4. **No testnet/mainnet deployment** — devnet only
-5. **STRK20Adapter is a stub** — STRK20 not yet publicly deployed (announced 2026-03-10)
-6. **1-party trusted setup** — not production-ready (need MPC ceremony)
+1. **Server-side Lit session signatures** — getLitSessionSigs() still throws stub error
+2. **On-chain withdrawal from HTTP queue** — e2e test queues proof but doesn't call pool.withdraw() with garaga calldata (that path verified separately in onchain.test.mjs)
+3. **No testnet/mainnet deployment** — devnet only
+4. **STRK20Adapter is a stub** — STRK20 not yet publicly deployed (announced 2026-03-10)
+5. **1-party trusted setup** — not production-ready (need MPC ceremony)
+6. **Redis-backed nullifier set** — in-memory only (server restart = replay window)
+7. **RapidSnark** — snarkjs WASM is 4-6s; RapidSnark would be ~100ms
 
 ## STRK20 Context
 Starkware announced STRK20 on 2026-03-10. Technical deep dive coming in "a few days".
@@ -100,8 +120,19 @@ STRK20Adapter stub is ready to fill in. Monitor: https://strk20.starknet.io/
 
 ## Confidence Level
 - TypeScript compilation: compiles clean.
-- Proof generation: VERIFIED WORKING with test witness. ~4-6s per proof.
+- Proof generation: VERIFIED WORKING. ~4-6s per proof.
 - Poseidon hash: VERIFIED matches Ekubo circuit.
-- End-to-end (deposit → prove → withdraw): VERIFIED against local devnet pool (post-fix).
+- On-chain end-to-end (deposit → prove → garaga calldata → withdraw): VERIFIED, 8/8.
+- HTTP x402 end-to-end (deposit → real ZK proof → HTTP paywall): VERIFIED, 28/28.
+- Privacy invariants (no depositor info leaks to server): VERIFIED in e2e tests.
+- Replay prevention: VERIFIED in e2e tests.
 - Frontend: written, not deployed (no remote configured).
 - Lit encryption: written, not tested against real Lit network.
+
+## Test Summary
+| Test file | Count | Status |
+|-----------|-------|--------|
+| tests/onchain.test.mjs | 8/8 | PASS |
+| tests/server.test.mjs | 13/13 | PASS |
+| tests/integration.test.mjs | 26/26 | PASS |
+| tests/e2e.test.mjs | 28/28 | PASS (NEW) |

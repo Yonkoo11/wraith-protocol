@@ -3,9 +3,11 @@
  *
  * The agent generates the Groth16 proof CLIENT-SIDE and sends only the proof
  * (as a felt252 array) to the server. The server's job here is simple:
- *   1. Receive a pre-generated proof
- *   2. Submit it to pool.withdraw() on Starknet
- *   3. Retry on failure (up to 3 times)
+ *   1. Receive a pre-generated proof (30-felt HTTP transport format)
+ *   2. Reconstruct the raw snarkjs proof JSON from the 30-felt encoding
+ *   3. Generate garaga 0.15.3 calldata (full_proof_with_hints) via Python subprocess
+ *   4. Submit to pool.withdraw() on Starknet
+ *   5. Retry on failure (up to 3 times)
  *
  * The server NEVER generates ZK proofs — it never sees (secret, nullifier).
  * The server NEVER calls Lit Protocol — that design flaw is gone.
@@ -16,7 +18,7 @@
  * - Server does NOT: learn which deposit this corresponds to, or the depositor address
  *
  * On-chain:
- * - pool.withdraw(proof) verifies the Groth16 proof via the garaga verifier
+ * - pool.withdraw(garagaCalldata) verifies the Groth16 proof via the garaga verifier
  * - If proof is valid: recipient receives funds, nullifier is stored (prevents replay)
  * - If proof is invalid: tx reverts, no funds move (server loses nothing; it served
  *   the request in good faith, same as any HTTP API trusting a client-provided token)
@@ -25,10 +27,20 @@
  * - Requests are served immediately after nullifier check (proof not yet on-chain)
  * - Withdrawals are batched to reduce gas overhead (default: 5-minute intervals)
  * - For high-value APIs: set flushIntervalMs=0 to submit immediately before serving
+ *
+ * garaga 0.15.3 note:
+ * - Must use garaga 0.15.3 (matching the compiled verifier contract, NOT garaga 1.x)
+ * - garaga 1.0.1 dropped include_digits_decomposition=True in MSM calldata
+ * - Install: pip install garaga==0.15.3 (under python3.10 or compatible)
+ * - Set garagaPath to the garaga installation dir (contains hydra/)
  */
 
-import { Account, RpcProvider, CallData } from 'starknet';
-// Note: no imports from wraith-agent SDK needed here — we only submit pre-generated proofs
+import { execSync } from 'child_process';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
+import { Account, RpcProvider } from 'starknet';
+import { deserializeProofFromFelts } from '../../dist/x402.js';
 
 interface QueuedWithdrawal {
   zkProof: string[];
@@ -45,6 +57,19 @@ export interface WithdrawalQueueConfig {
   poolAddress: string;
   /** Starknet RPC URL */
   rpcUrl: string;
+  /**
+   * Absolute path to circuits/verification_key.json.
+   * Garaga needs this to generate full_proof_with_hints calldata.
+   */
+  vkPath: string;
+  /**
+   * Absolute path to the garaga 0.15.3 installation directory (contains hydra/).
+   * Typically: /path/to/project/vendor/garaga-v0.15.3  OR  /tmp/garaga-v0.15.3
+   * Must be 0.15.3 — later versions changed the calldata format.
+   */
+  garagaPath: string;
+  /** Python interpreter to use for garaga (default: 'python3.10') */
+  pythonPath?: string;
   /** Flush interval in ms (default: 5 minutes, 0 = flush on every enqueue) */
   flushIntervalMs?: number;
   /** Max withdrawal attempts before dropping (default: 3) */
@@ -63,6 +88,7 @@ export class WithdrawalQueue {
 
   constructor(config: WithdrawalQueueConfig) {
     this.config = {
+      pythonPath: 'python3.10',
       flushIntervalMs: 5 * 60 * 1000,
       maxAttempts: 3,
       onConfirmed: () => {},
@@ -138,20 +164,93 @@ export class WithdrawalQueue {
     }
   }
 
+  /**
+   * Generate garaga 0.15.3 calldata from the 30-felt transport encoding.
+   *
+   * Steps:
+   *   1. Reconstruct snarkjs proof JSON from 30-felt HTTP transport encoding
+   *   2. Write proof.json + public_signals.json to temp dir
+   *   3. Run garaga Python script to produce full_proof_with_hints calldata
+   *   4. Return calldata as string[] (garaga format: [span_len, elem1, ..., elemN])
+   *
+   * This must use garaga 0.15.3 — the same version used to compile the verifier contract.
+   */
+  private generateGaragaCalldata(zkProof: string[]): string[] {
+    const { proof, publicSignals } = deserializeProofFromFelts(zkProof);
+
+    const tag = `${item_tag(zkProof)}-${Date.now()}`;
+    const tmpDir = os.tmpdir();
+    const proofPath  = path.join(tmpDir, `wraith-proof-${tag}.json`);
+    const pubPath    = path.join(tmpDir, `wraith-pub-${tag}.json`);
+    const cdOutPath  = path.join(tmpDir, `wraith-cd-${tag}.json`);
+
+    fs.writeFileSync(proofPath, JSON.stringify(proof));
+    fs.writeFileSync(pubPath,   JSON.stringify(publicSignals));
+
+    // Write Python script to a temp file to avoid shell-escaping issues
+    const pyPath = path.join(tmpDir, `wraith-garaga-${tag}.py`);
+    const pyScript = [
+      'import sys, json',
+      `sys.path.insert(0, '${this.config.garagaPath}/hydra')`,
+      'from garaga.starknet.groth16_contract_generator.calldata import groth16_calldata_from_vk_and_proof',
+      'from garaga.starknet.groth16_contract_generator.parsing_utils import Groth16Proof, Groth16VerifyingKey',
+      `vk = Groth16VerifyingKey.from_json('${this.config.vkPath}')`,
+      `proof = Groth16Proof.from_json(proof_path='${proofPath}', public_inputs_path='${pubPath}')`,
+      'calldata = groth16_calldata_from_vk_and_proof(vk, proof)',
+      `json.dump([str(x) for x in calldata], open('${cdOutPath}', 'w'))`,
+      'print(len(calldata))',
+    ].join('\n');
+    fs.writeFileSync(pyPath, pyScript);
+
+    try {
+      execSync(`${this.config.pythonPath} ${pyPath}`, {
+        timeout: 60_000,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      const stderr = (err as NodeJS.ErrnoException & { stderr?: Buffer }).stderr?.toString() ?? '';
+      throw new Error(`garaga calldata generation failed: ${msg}\n${stderr}`);
+    } finally {
+      try { fs.unlinkSync(proofPath); } catch {}
+      try { fs.unlinkSync(pubPath);   } catch {}
+      try { fs.unlinkSync(pyPath);    } catch {}
+    }
+
+    const calldata = JSON.parse(fs.readFileSync(cdOutPath, 'utf8')) as string[];
+    try { fs.unlinkSync(cdOutPath); } catch {}
+
+    if (!calldata || calldata.length < 30) {
+      throw new Error(
+        `garaga returned ${calldata?.length ?? 0} felts — expected ~2918. ` +
+        `Check that garagaPath points to garaga 0.15.3 (not 1.x).`
+      );
+    }
+
+    return calldata;
+  }
+
   private async submitWithdrawal(item: QueuedWithdrawal): Promise<void> {
     console.log(
       `[WithdrawalQueue] Submitting withdrawal: ` +
       `nullifier=${item.nullifierHash.slice(0, 20)}..., amount=${item.amount}`
     );
 
+    // Reconstruct garaga 0.15.3 calldata from the 30-felt HTTP transport encoding.
+    // The pool.withdraw() entry point expects full_proof_with_hints format, NOT
+    // the raw 30-felt transport array. Using the raw array would revert every time.
+    const calldata = this.generateGaragaCalldata(item.zkProof);
+
+    console.log(
+      `[WithdrawalQueue] garaga calldata: ${calldata.length} felts. Submitting...`
+    );
+
     // fn withdraw(proof: Span<felt252>) -> bool
-    // The proof is the full felt252 array: [pi_a, pi_b, pi_c, public_signals]
+    // calldata[0] is the span length (Cairo Span encoding); rest are the felts.
     const { transaction_hash } = await this.config.account.execute({
       contractAddress: this.config.poolAddress,
       entrypoint: 'withdraw',
-      calldata: CallData.compile({
-        proof: item.zkProof,
-      }),
+      calldata,
     });
 
     console.log(
@@ -161,4 +260,9 @@ export class WithdrawalQueue {
 
     this.config.onConfirmed(transaction_hash, item.nullifierHash);
   }
+}
+
+/** Derive a short unique tag from a proof (first non-zero felt prefix). */
+function item_tag(zkProof: string[]): string {
+  return (zkProof[0] ?? '0').toString().slice(-8);
 }

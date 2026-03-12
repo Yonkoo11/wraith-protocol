@@ -54,6 +54,7 @@ import {
 } from '../../dist/x402.js';
 import type { X402PaymentProof } from '../../dist/types.js';
 import { NullifierSet } from './nullifier-set.js';
+import type { INullifierSet } from './nullifier-set.js';
 import { WithdrawalQueue } from './withdrawal-queue.js';
 import type { WithdrawalQueueConfig } from './withdrawal-queue.js';
 import type { Account } from 'starknet';
@@ -78,6 +79,11 @@ export interface PaywallConfig {
    * If omitted, caller must handle submission via onVerified callback.
    */
   withdrawal?: Omit<WithdrawalQueueConfig, 'poolAddress'> & { poolAddress: string };
+  /**
+   * Optional nullifier set. Defaults to in-memory NullifierSet.
+   * Pass a RedisNullifierSet for production (survives restarts, shared across replicas).
+   */
+  nullifierSet?: INullifierSet;
   /** Called after successful proof verification (before next()) */
   onVerified?: (proof: X402PaymentProof, req: Request) => void;
 }
@@ -105,7 +111,7 @@ export interface WraithRequest extends Request {
  *   app.post('/api/query', paywall, handler);
  */
 export function wraithPaywall(config: PaywallConfig) {
-  const nullifiers = new NullifierSet();
+  const nullifiers: INullifierSet = config.nullifierSet ?? new NullifierSet();
 
   // Optionally start a withdrawal queue
   let queue: WithdrawalQueue | null = null;
@@ -163,7 +169,7 @@ export function wraithPaywall(config: PaywallConfig) {
 
     // Check for replay: has this nullifierHash been spent already?
     const nullifierHash = proof.nullifierHash;
-    if (nullifiers.has(nullifierHash)) {
+    if (await nullifiers.has(nullifierHash)) {
       res.status(402).json({
         error: 'Payment verification failed',
         reason: `Nullifier already spent: ${nullifierHash.slice(0, 20)}...`,
@@ -172,7 +178,7 @@ export function wraithPaywall(config: PaywallConfig) {
     }
 
     // Mark as spent BEFORE serving (prevents race conditions on concurrent requests)
-    nullifiers.add(nullifierHash);
+    await nullifiers.add(nullifierHash);
 
     // Notify caller (e.g., for custom withdrawal handling)
     config.onVerified?.(proof, req);

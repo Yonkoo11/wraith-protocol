@@ -30,10 +30,15 @@ import { WithdrawalQueue } from './withdrawal-queue.js';
 const app = express();
 app.use(express.json());
 
-const STARKNET_RPC = process.env.STARKNET_RPC_URL          ?? 'http://127.0.0.1:5050';
-const API_ADDRESS  = process.env.API_STARKNET_ADDRESS      ?? '';
-const API_PK       = process.env.API_STARKNET_PRIVATE_KEY  ?? '';
-const POOL_ADDRESS = process.env.POOL_ADDRESS              ?? '';
+const STARKNET_RPC  = process.env.STARKNET_RPC_URL          ?? 'http://127.0.0.1:5050';
+const API_ADDRESS   = process.env.API_STARKNET_ADDRESS      ?? '';
+const API_PK        = process.env.API_STARKNET_PRIVATE_KEY  ?? '';
+const POOL_ADDRESS  = process.env.POOL_ADDRESS              ?? '';
+// Path to circuits/verification_key.json (required for garaga calldata generation)
+const VK_PATH       = process.env.VK_PATH                   ?? new URL('../../circuits/verification_key.json', import.meta.url).pathname;
+// Path to garaga 0.15.3 installation directory (contains hydra/)
+const GARAGA_PATH   = process.env.GARAGA_PATH               ?? '/tmp/garaga-v0.15.3';
+const PYTHON_PATH   = process.env.PYTHON_PATH               ?? 'python3.10';
 
 if (!API_ADDRESS || !API_PK || !POOL_ADDRESS) {
   console.error(
@@ -46,10 +51,14 @@ const provider = new RpcProvider({ nodeUrl: STARKNET_RPC });
 const account  = new Account(provider, API_ADDRESS, API_PK);
 
 // Withdrawal queue — submits pre-generated proofs to Starknet every 5 minutes
+// using garaga 0.15.3 calldata format (full_proof_with_hints, ~2918 felts)
 const withdrawalQueue = new WithdrawalQueue({
   account,
   poolAddress: POOL_ADDRESS,
   rpcUrl:      STARKNET_RPC,
+  vkPath:      VK_PATH,
+  garagaPath:  GARAGA_PATH,
+  pythonPath:  PYTHON_PATH,
 });
 withdrawalQueue.start();
 

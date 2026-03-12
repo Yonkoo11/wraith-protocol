@@ -1,50 +1,46 @@
 /**
- * NullifierSet — in-memory double-spend prevention for the server.
+ * NullifierSet — double-spend prevention for the server.
  *
  * Tracks nullifierHashes received in payment proofs before they are confirmed
  * on-chain. Once the pool contract processes pool.withdraw(), it records the
  * nullifier permanently in contract storage. Until then, this set is the only
  * guard against replay attacks.
  *
- * PRODUCTION NOTE:
- * An in-memory set is lost on server restart. A payment proof submitted just
- * before a restart could be replayed after it. For production, persist this
- * set to a database (Redis, Postgres) with TTL = max time from proof acceptance
- * to on-chain confirmation (typically 60-120s on Starknet).
+ * Two implementations:
+ * - NullifierSet: in-memory. Fast, zero deps, survives until process restart.
+ * - RedisNullifierSet: Redis-backed. Survives restarts, shared across replicas.
  *
- * The economic risk of an in-memory set:
- * - Attacker captures a valid proof from your logs
- * - Server restarts (crash, deploy, etc.)
- * - Attacker replays the same proof before the original withdrawal confirms
+ * Production vulnerability of in-memory set:
+ * - Attacker captures a valid proof (from logs, network sniff, whatever)
+ * - Server restarts (crash, deploy, OOM)
+ * - Attacker replays before the original on-chain withdrawal confirms
  * - Server serves a second request for the same nullifier
  * - On-chain: first withdrawal succeeds, second fails (pool rejects spent nullifier)
- * - Net loss: one free API call per restart event
+ * - Net loss: one free API call per server restart event
  *
- * For low-value APIs this risk is acceptable. For high-value APIs, use Redis.
+ * For low-value APIs (< $0.10/call) the in-memory set is acceptable.
+ * For high-value APIs: use RedisNullifierSet.
  */
-export class NullifierSet {
+
+/** Shared interface. Pass either implementation to wraithPaywall(). */
+export interface INullifierSet {
+  has(nullifierHash: string): boolean | Promise<boolean>;
+  add(nullifierHash: string): void | Promise<void>;
+  remove(nullifierHash: string): void | Promise<void>;
+  readonly size: number | Promise<number>;
+}
+
+export class NullifierSet implements INullifierSet {
   private readonly spent = new Set<string>();
 
-  /**
-   * Check if a nullifierHash has already been spent.
-   * Compare case-insensitively (felt252 hex may be upper or lower case).
-   */
   has(nullifierHash: string): boolean {
     return this.spent.has(nullifierHash.toLowerCase());
   }
 
-  /**
-   * Mark a nullifierHash as spent.
-   * Call this BEFORE calling next() in middleware, not after.
-   */
   add(nullifierHash: string): void {
     this.spent.add(nullifierHash.toLowerCase());
   }
 
-  /**
-   * Remove a nullifierHash from the set (e.g., if withdrawal fails permanently).
-   * Use with care: removing a nullifier allows replay.
-   */
   remove(nullifierHash: string): void {
     this.spent.delete(nullifierHash.toLowerCase());
   }
@@ -52,4 +48,59 @@ export class NullifierSet {
   get size(): number {
     return this.spent.size;
   }
+}
+
+/**
+ * Redis-backed nullifier set. Survives server restarts and scales across replicas.
+ *
+ * Requires a Redis client implementing the minimal interface below.
+ * Works with `redis` v4 (npm install redis) or `ioredis`:
+ *
+ * ```ts
+ * import { createClient } from 'redis';
+ * const redis = await createClient({ url: process.env.REDIS_URL }).connect();
+ * const nullifiers = new RedisNullifierSet(redis, { key: 'wraith:nullifiers' });
+ * ```
+ *
+ * The key holds a Redis Set. No TTL by default — nullifiers must persist at
+ * least until the on-chain nullifier is stored (typically 60-120s on Starknet).
+ */
+export class RedisNullifierSet implements INullifierSet {
+  private readonly client: RedisLike;
+  private readonly key: string;
+
+  constructor(
+    client: RedisLike,
+    opts: { key?: string } = {}
+  ) {
+    this.client = client;
+    this.key = opts.key ?? 'wraith:nullifiers';
+  }
+
+  async has(nullifierHash: string): Promise<boolean> {
+    return this.client.sIsMember(this.key, nullifierHash.toLowerCase());
+  }
+
+  async add(nullifierHash: string): Promise<void> {
+    await this.client.sAdd(this.key, nullifierHash.toLowerCase());
+  }
+
+  async remove(nullifierHash: string): Promise<void> {
+    await this.client.sRem(this.key, nullifierHash.toLowerCase());
+  }
+
+  get size(): Promise<number> {
+    return this.client.sCard(this.key);
+  }
+}
+
+/**
+ * Minimal Redis client interface.
+ * Compatible with `redis` v4 and `ioredis` (method names match redis v4).
+ */
+export interface RedisLike {
+  sAdd(key: string, member: string): Promise<number>;
+  sIsMember(key: string, member: string): Promise<boolean>;
+  sRem(key: string, member: string): Promise<number>;
+  sCard(key: string): Promise<number>;
 }

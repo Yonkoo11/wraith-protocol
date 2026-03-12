@@ -231,3 +231,66 @@ export interface PublicInputs {
   refundCommitmentHash: string;
   associatedSetRoot: string;
 }
+
+/**
+ * Reconstruct a snarkjs-format proof object and public signals array
+ * from the 30-felt HTTP transport encoding.
+ *
+ * This is the inverse of serializeProofToFelts() used by the agent.
+ * Used by the server's WithdrawalQueue to generate garaga calldata.
+ *
+ * Felt layout (16 proof + 14 signal felts):
+ *   pi_a  [0..3]:    G1 x (low,high), G1 y (low,high)
+ *   pi_b  [4..11]:   G2 x0 (low,high), x1 (low,high), y0 (low,high), y1 (low,high)
+ *   pi_c  [12..15]:  G1 x (low,high), G1 y (low,high)
+ *   signals [16..29]: 7 × u256 (low,high each)
+ *
+ * Output matches the snarkjs proof JSON format that garaga expects.
+ */
+export function deserializeProofFromFelts(zkProof: string[]): {
+  proof: {
+    pi_a: string[];
+    pi_b: string[][];
+    pi_c: string[];
+    protocol: string;
+    curve: string;
+  };
+  publicSignals: string[];
+} {
+  const PROOF_FELTS = 16;
+  const SIGNAL_COUNT = 7;
+  const EXPECTED = PROOF_FELTS + SIGNAL_COUNT * 2;
+
+  if (zkProof.length < EXPECTED) {
+    throw new Error(
+      `deserializeProofFromFelts: need ${EXPECTED} felts, got ${zkProof.length}`
+    );
+  }
+
+  function readU256At(feltIdx: number): string {
+    const low  = BigInt(zkProof[feltIdx]);
+    const high = BigInt(zkProof[feltIdx + 1]);
+    return (low + (high << 128n)).toString();
+  }
+
+  const pi_a = [readU256At(0), readU256At(2), '1'];
+
+  // pi_b is a G2 point: x = [x0, x1], y = [y0, y1] (Fq2 elements)
+  const pi_b = [
+    [readU256At(4),  readU256At(6)],
+    [readU256At(8),  readU256At(10)],
+    ['1', '0'],
+  ];
+
+  const pi_c = [readU256At(12), readU256At(14), '1'];
+
+  const publicSignals: string[] = [];
+  for (let i = 0; i < SIGNAL_COUNT; i++) {
+    publicSignals.push(readU256At(PROOF_FELTS + i * 2));
+  }
+
+  return {
+    proof: { pi_a, pi_b, pi_c, protocol: 'groth16', curve: 'bn128' },
+    publicSignals,
+  };
+}
