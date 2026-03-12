@@ -286,13 +286,13 @@ section {
   line-height: 1.65;
 }
 
-/* Fade-in scroll animation */
-.fade-up {
+/* Fade-in scroll animation — only hidden when JS has run */
+.js-loaded .fade-up {
   opacity: 0;
   transform: translateY(24px);
   transition: opacity 0.55s ease, transform 0.55s ease;
 }
-.fade-up.visible {
+.js-loaded .fade-up.visible {
   opacity: 1;
   transform: translateY(0);
 }
@@ -1116,7 +1116,7 @@ footer {
 
   <div class="warning-bar">
     <span class="warn-icon">⚠</span>
-    <span><strong>Server logging:</strong> X-Payment-Proof header is stripped before handlers. Any upstream proxy logging (nginx access_log, Cloudflare, AWS ALB) must also be audited — a logged X-Payment-Proof header defeats the ZK unlinking entirely.</span>
+    <span><strong>Server logging:</strong> X-Payment-Proof header is stripped before handlers. Any upstream proxy logging (nginx access_log, Cloudflare, AWS ALB) must also be audited. A logged X-Payment-Proof header defeats the ZK unlinking entirely.</span>
   </div>
 </section>
 
@@ -1217,7 +1217,7 @@ footer {
   <div class="section-label">Section 03</div>
   <div class="section-divider"></div>
   <h2 class="section-title">ANONYMITY SET</h2>
-  <p class="section-sub">The most important privacy parameter. Not a feature — a prerequisite.</p>
+  <p class="section-sub">The most important privacy parameter. Not a feature. A prerequisite.</p>
 
   <div class="anonymity-layout">
     <div>
@@ -1697,7 +1697,7 @@ HTTP/1.1 <span class="num">200</span> OK
       ctx.beginPath();
       ctx.setLineDash([4, 6]);
       ctx.lineDashOffset = -(t * 0.6 + i * 13) % 10;
-      ctx.strokeStyle = `rgba(6,182,212,${0.10 + 0.10 * Math.sin(t * 0.025 + i + 1)})`;
+      ctx.strokeStyle = `rgba(6,182,212,${0.18 + 0.18 * Math.sin(t * 0.025 + i + 1)})`;
       ctx.lineWidth = 1;
       ctx.moveTo(edgeX, edgeY);
       ctx.lineTo(node.x, node.y);
@@ -1729,9 +1729,9 @@ HTTP/1.1 <span class="num">200</span> OK
 
     // Draw withdrawal nodes
     withdrawalNodes.forEach((node, i) => {
-      const a = 0.3 + 0.25 * Math.sin(t * 0.018 + node.phase + 1.5);
+      const a = 0.65 + 0.30 * Math.sin(t * 0.018 + node.phase + 1.5);
       ctx.beginPath();
-      ctx.arc(node.x, node.y, 3, 0, Math.PI * 2);
+      ctx.arc(node.x, node.y, 3.5, 0, Math.PI * 2);
       ctx.fillStyle = `rgba(6,182,212,${a})`;
       ctx.fill();
     });
@@ -1741,7 +1741,7 @@ HTTP/1.1 <span class="num">200</span> OK
       const rx = withdrawalNodes.reduce((s, n) => s + n.x, 0) / withdrawalNodes.length;
       const ry = Math.min(...withdrawalNodes.map(n => n.y)) - 14;
       ctx.font = '10px JetBrains Mono, monospace';
-      ctx.fillStyle = 'rgba(6,182,212,0.45)';
+      ctx.fillStyle = 'rgba(6,182,212,0.80)';
       ctx.textAlign = 'center';
       ctx.fillText('WITHDRAWAL', rx, ry);
     }
@@ -1829,8 +1829,8 @@ HTTP/1.1 <span class="num">200</span> OK
     dots.forEach((d, i) => {
       if (d === myDot) return;
       ctx.beginPath();
-      ctx.arc(d.x, d.y, 2, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(148,163,184,0.18)';
+      ctx.arc(d.x, d.y, 2.5, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(148,163,184,0.45)';
       ctx.fill();
     });
 
@@ -1957,8 +1957,13 @@ function copyCode(btn) {
 
 // ═══════════════════════════════════════════════════
 // SCROLL FADE-IN (IntersectionObserver)
+// Sections are visible by default (no-JS fallback).
+// js-loaded class enables opacity:0 initial state,
+// then IntersectionObserver adds .visible on scroll.
 // ═══════════════════════════════════════════════════
 (function() {
+  document.documentElement.classList.add('js-loaded');
+
   const observer = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
       if (entry.isIntersecting) {
