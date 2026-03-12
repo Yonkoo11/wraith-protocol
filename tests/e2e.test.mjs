@@ -265,6 +265,7 @@ function startPaywallServer(serverAddress, poolAddress, requiredAmount = 1_000_0
     token:         'ETH',
     serverAddress,
     poolAddress,
+    allowInsecure: true, // test server runs on plain HTTP (127.0.0.1)
     onVerified: (proof) => {
       verified.push({ nullifierHash: proof.nullifierHash, zkProofLen: proof.zkProof?.length });
       if (proof.zkProof?.length > 0) {

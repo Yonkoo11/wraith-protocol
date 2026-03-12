@@ -31,6 +31,11 @@ template Pool(levels, associatedSetLevels) {
         withdraw.pathIndices[i] <== pathIndices[i];
     }
 
+    // Association set (Privacy Pools compliance feature).
+    // When associatedSetRoot = root and path is identical to the main proof,
+    // this is a redundant Merkle check — all depositors are "in the set".
+    // To filter: pass a separately curated root + inclusion proof here.
+    // Cost: ~half of the 14,282 constraints are duplicated when set = main tree.
     signal input associatedSetRoot;
     signal input associatedSetPathElements[associatedSetLevels];
     signal input associatedSetPathIndices[associatedSetLevels];

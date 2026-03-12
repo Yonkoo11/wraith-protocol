@@ -20,8 +20,8 @@ template CommitmentHasher() {
 template AssociationChecker(levels) {
     signal input root;
     signal input nullifierHash;
-    signal input recipient; // not taking part in any computations
-    signal input fee;      // not taking part in any computations
+    signal input recipient; // constrained below via square trick (not part of commitment hash)
+    signal input fee;      // constrained below via square trick; must be < commitmentAmount
     signal input refund;   
     signal input refundCommitmentHash;
     signal input commitmentAmount; 

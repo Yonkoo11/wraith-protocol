@@ -98,6 +98,7 @@ function startTestServer(requiredAmount = REQUIRED_AMOUNT) {
     token: 'USDC',
     serverAddress: SERVER_ADDRESS,
     poolAddress: '0x456',
+    allowInsecure: true, // test server runs on plain HTTP (127.0.0.1)
     onVerified: (proof, req) => {
       // NOTE: no txHash, no litCiphertext here — just nullifierHash and zkProof
       verified.push({ nullifierHash: proof.nullifierHash, zkProof: proof.zkProof });
