@@ -198,6 +198,14 @@ export function wraithPaywall(config: PaywallConfig) {
       agentURI: proof.agentURI,
     };
 
+    // Strip the payment proof header before calling downstream handlers.
+    // Without this, any logging middleware or error handler will capture the
+    // full base64-encoded proof (including nullifierHash) in access logs,
+    // error reports, APM traces, etc. — creating a persistent record that
+    // links HTTP request timestamps to on-chain nullifiers.
+    delete req.headers['x-payment-proof'];
+    delete req.headers['x-payment-scheme'];
+
     next();
   };
 }

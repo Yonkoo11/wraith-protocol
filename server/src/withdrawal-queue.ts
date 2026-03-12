@@ -36,6 +36,7 @@
  */
 
 import { execSync } from 'child_process';
+import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -178,7 +179,9 @@ export class WithdrawalQueue {
   private generateGaragaCalldata(zkProof: string[]): string[] {
     const { proof, publicSignals } = deserializeProofFromFelts(zkProof);
 
-    const tag = `${item_tag(zkProof)}-${Date.now()}`;
+    // Use a cryptographically random tag to avoid collision and leave no
+    // predictable forensic artifact in /tmp.
+    const tag = crypto.randomUUID();
     const tmpDir = os.tmpdir();
     const proofPath  = path.join(tmpDir, `wraith-proof-${tag}.json`);
     const pubPath    = path.join(tmpDir, `wraith-pub-${tag}.json`);
@@ -262,7 +265,3 @@ export class WithdrawalQueue {
   }
 }
 
-/** Derive a short unique tag from a proof (first non-zero felt prefix). */
-function item_tag(zkProof: string[]): string {
-  return (zkProof[0] ?? '0').toString().slice(-8);
-}

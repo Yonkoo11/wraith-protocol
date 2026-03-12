@@ -82,6 +82,18 @@ The core mechanism is the same as Tornado Cash v2 applied to HTTP payments
 | Agent's secret/nullifier | NO | Private circuit inputs, never sent |
 | Deposit transaction hash | NO | Removed from v1 design (was a flaw in prior design) |
 | nullifierHash | YES | Required for double-spend prevention |
+| X-Payment-Proof header contents | NO (v1.1+) | Stripped by middleware before downstream handlers; not in access logs |
+
+**Server logging caveat:**
+Prior to v1.1, the `X-Payment-Proof` header was not stripped before `next()`.
+Any logging middleware (morgan, express-winston, APM agents, nginx access logs)
+would capture the full base64 proof in the access log, recording the
+nullifierHash alongside the request timestamp. This creates a persistent record
+that links HTTP request times to on-chain nullifiers.
+
+v1.1 fix: `wraithPaywall()` deletes `X-Payment-Proof` and `X-Payment-Scheme`
+headers before calling `next()`. Log sanitization for the request URL and IP
+is outside Wraith's scope — standard advice applies (no-logging mode, Tor, etc.).
 
 ---
 
@@ -131,6 +143,29 @@ Wraith's PaymentBatcher rounds amounts to standard buckets to mitigate this.
 The API server sees that *someone* called the API at timestamp T. Combined with
 chain data, a server with both views (HTTP + chain) can correlate timing with
 deposits.
+
+**`flushIntervalMs` is a privacy parameter, not just a gas knob:**
+The `WithdrawalQueue` batches proofs and submits them every `flushIntervalMs`
+milliseconds (default: 5 minutes). This interval directly affects privacy:
+
+- `flushIntervalMs=0` (immediate): server submits `pool.withdraw()` within
+  seconds of each HTTP request. An observer with access to both HTTP logs and
+  chain data can trivially link "API request at T" to "withdrawal at T+2s". The
+  ZK proof hides which deposit funded the payment, but the 1-to-1 timing link
+  between HTTP request and on-chain withdrawal is visible.
+
+- `flushIntervalMs=300000` (5 minutes, default): all proofs received in a
+  5-minute window are submitted together. An observer sees a batch of N
+  withdrawals at T+5min and cannot determine which HTTP request corresponds to
+  which withdrawal. N > 1 provides meaningful timing anonymity.
+
+- Longer intervals = stronger timing privacy, at the cost of delayed settlement.
+  For high-value APIs (> $1/call), the server operator should weigh latency
+  against the privacy benefit of batching.
+
+**Recommendation:** Never use `flushIntervalMs=0` unless you are intentionally
+trading timing privacy for latency guarantees on a high-value endpoint. The
+default (5 minutes) is a reasonable balance for typical API pricing.
 
 ---
 

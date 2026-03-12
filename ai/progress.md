@@ -107,12 +107,11 @@ scripts/rpc-proxy.mjs
 
 ## What's NOT Done (remaining gaps)
 1. **Server-side Lit session signatures** — getLitSessionSigs() still throws stub error
-2. **On-chain withdrawal from HTTP queue** — e2e test queues proof but doesn't call pool.withdraw() with garaga calldata (that path verified separately in onchain.test.mjs)
-3. **No testnet/mainnet deployment** — devnet only
-4. **STRK20Adapter is a stub** — STRK20 not yet publicly deployed (announced 2026-03-10)
-5. **1-party trusted setup** — not production-ready (need MPC ceremony)
-6. **Redis-backed nullifier set** — in-memory only (server restart = replay window)
-7. **RapidSnark** — snarkjs WASM is 4-6s; RapidSnark would be ~100ms
+2. **No testnet/mainnet deployment** — devnet only
+3. **STRK20Adapter is a stub** — STRK20 not yet publicly deployed (announced 2026-03-10)
+4. **1-party trusted setup** — not production-ready (need MPC ceremony)
+5. **RapidSnark** — snarkjs WASM is 4-6s; RapidSnark would be ~100ms
+6. **No e2e test for garaga calldata path** — WithdrawalQueue.submitWithdrawal() is the correct code path now but has not been exercised end-to-end (would require devnet + garaga + separate test setup)
 
 ## STRK20 Context
 Starkware announced STRK20 on 2026-03-10. Technical deep dive coming in "a few days".
@@ -135,4 +134,7 @@ STRK20Adapter stub is ready to fill in. Monitor: https://strk20.starknet.io/
 | tests/onchain.test.mjs | 8/8 | PASS |
 | tests/server.test.mjs | 13/13 | PASS |
 | tests/integration.test.mjs | 26/26 | PASS |
-| tests/e2e.test.mjs | 28/28 | PASS (NEW) |
+| tests/e2e.test.mjs | 28/28 | PASS |
+
+## Deployed
+- GitHub Pages: https://yonkoo11.github.io/wraith-protocol/ (rebuilds on push to main)
