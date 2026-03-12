@@ -996,7 +996,7 @@ footer {
   <ul class="nav-links">
     <li><a href="#contract">Protocol</a></li>
     <li><a href="#integrate">Docs</a></li>
-    <li><a href="https://github.com/wraith-protocol" target="_blank" rel="noopener">GitHub</a></li>
+    <li><a href="https://github.com/Yonkoo11/wraith-protocol" target="_blank" rel="noopener">GitHub</a></li>
   </ul>
   <div class="nav-chip"><span class="hex">⬡</span> DEVNET</div>
 </nav>
@@ -1008,13 +1008,13 @@ footer {
     <div class="hero-title">WRAITH</div>
     <div class="hero-title-2">PROTOCOL</div>
     <div class="hero-rule">──────────────────────────────</div>
-    <p class="hero-tagline">Private payments for AI agents.<br><strong>The payer is unknown to the payee.</strong></p>
-    <p class="hero-guarantee">Cryptographic guarantee. Not a promise.</p>
+    <p class="hero-tagline">Private payments for AI agents.<br><strong>The deposit is unlinked from the payment.</strong></p>
+    <p class="hero-guarantee">Cryptographic guarantee on the link. Not a promise.</p>
     <div class="hero-rule">──────────────────────────────</div>
     <div class="hero-stack"><span>Groth16</span> · <span>BN254</span> · <span>Poseidon2</span> · <span>x402</span> · <span>Starknet</span></div>
     <div class="hero-ctas">
       <a href="#contract" class="btn-primary">READ THE PROTOCOL ↓</a>
-      <a href="https://github.com/wraith-protocol" target="_blank" rel="noopener" class="btn-secondary">GitHub ↗</a>
+      <a href="https://github.com/Yonkoo11/wraith-protocol" target="_blank" rel="noopener" class="btn-secondary">GitHub ↗</a>
     </div>
   </div>
 </section>
@@ -1279,7 +1279,7 @@ footer {
         <span>agent.ts</span>
         <button class="copy-btn" onclick="copyCode(this)">COPY</button>
       </div>
-      <pre class="code" id="code-agent"><span class="kw">import</span> { <span class="type">WraithAgent</span> } <span class="kw">from</span> <span class="str">'@wraith/sdk'</span>;
+      <pre class="code" id="code-agent"><span class="kw">import</span> { <span class="type">WraithAgent</span> } <span class="kw">from</span> <span class="str">'wraith-agent'</span>;
 <span class="kw">import</span> { <span class="type">Account</span>, <span class="type">RpcProvider</span> } <span class="kw">from</span> <span class="str">'starknet'</span>;
 
 <span class="kw">const</span> <span class="prop">provider</span> <span class="op">=</span> <span class="kw">new</span> <span class="type">RpcProvider</span>({ <span class="prop">nodeUrl</span>: <span class="prop">RPC_URL</span> });
@@ -1310,8 +1310,8 @@ footer {
         <button class="copy-btn" onclick="copyCode(this)">COPY</button>
       </div>
       <pre class="code" id="code-server"><span class="kw">import</span> <span class="prop">express</span> <span class="kw">from</span> <span class="str">'express'</span>;
-<span class="kw">import</span> { <span class="type">wraithPaywall</span> }  <span class="kw">from</span> <span class="str">'@wraith/sdk/server'</span>;
-<span class="kw">import</span> { <span class="type">WithdrawalQueue</span> } <span class="kw">from</span> <span class="str">'@wraith/sdk/server'</span>;
+<span class="kw">import</span> { <span class="type">wraithPaywall</span> }  <span class="kw">from</span> <span class="str">'wraith-server'</span>;
+<span class="kw">import</span> { <span class="type">WithdrawalQueue</span> } <span class="kw">from</span> <span class="str">'wraith-server/withdrawal-queue'</span>;
 
 <span class="kw">const</span> <span class="prop">queue</span> <span class="op">=</span> <span class="kw">new</span> <span class="type">WithdrawalQueue</span>({
   <span class="prop">account</span>,
@@ -1365,7 +1365,10 @@ HTTP/1.1 <span class="num">200</span> OK
 { <span class="str">"result"</span>: <span class="str">"..."</span> }
 
 <span class="cmt">// X-Payment-Proof contains ONLY:</span>
-<span class="cmt">//   zkProof (30 felts), nullifierHash, publicInputs</span>
+<span class="cmt">//   zkProof (8 G1/G2 points, 30 serialized felts)</span>
+<span class="cmt">//   publicInputs: root, nullifierHash, recipient,</span>
+<span class="cmt">//                 fee, amount, refundCommitmentHash,</span>
+<span class="cmt">//                 associatedSetRoot  (7 values)</span>
 <span class="cmt">// NOT: txHash, depositor address, secret, nullifier</span></pre>
     </div>
   </div>
@@ -1481,6 +1484,22 @@ HTTP/1.1 <span class="num">200</span> OK
         If only 3 people have ever deposited into the pool, a chain observer narrows candidates to 3. Privacy scales directly with pool adoption. Do not use Wraith for sensitive payments when <code>pool.size &lt; 50</code>. At <code>pool.size = 1</code> there is zero anonymity.
       </div>
     </div>
+
+    <div class="limit-card">
+      <div class="limit-card-num">Limit 05</div>
+      <div class="limit-card-title">SERVER OPERATOR KNOWS YOUR IP</div>
+      <div class="limit-card-body">
+        The ZK proof hides the link between your deposit and payment from the chain. It does not hide your IP address from the server. The server operator has a complete IP-to-payment graph. For strong anonymity, route through Tor or a relay. This is unmitigated in v1.
+      </div>
+    </div>
+
+    <div class="limit-card">
+      <div class="limit-card-num">Limit 06</div>
+      <div class="limit-card-title">IN-MEMORY NULLIFIER SET</div>
+      <div class="limit-card-body">
+        The double-spend prevention is stored in RAM. A server restart clears it, opening a window where the same note can be spent twice until the next on-chain nullifier sync. Production requires a Redis-backed <code>NullifierSet</code>. The interface is implemented but not tested against live Redis.
+      </div>
+    </div>
   </div>
 
   <div class="verified-block">
@@ -1538,7 +1557,7 @@ HTTP/1.1 <span class="num">200</span> OK
     <div class="footer-brand-sub">Research implementation. Not audited.</div>
   </div>
   <ul class="footer-links">
-    <li><a href="https://github.com/wraith-protocol" target="_blank" rel="noopener">GitHub</a></li>
+    <li><a href="https://github.com/Yonkoo11/wraith-protocol" target="_blank" rel="noopener">GitHub</a></li>
     <li><a href="THREAT_MODEL.md">Threat Model</a></li>
     <li><a href="#mechanism">Circuit Source</a></li>
   </ul>
