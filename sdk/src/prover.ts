@@ -179,12 +179,6 @@ function serializeProofToFelts(
   },
   publicSignals: string[]
 ): bigint[] {
-  const U256_MAX = (1n << 256n) - 1n;
-
-  function toBigInt(hex: string): bigint {
-    return BigInt(hex.startsWith('0x') ? hex : '0x' + hex);
-  }
-
   function u256ToFelts(value: bigint): [bigint, bigint] {
     const low = value & ((1n << 128n) - 1n);
     const high = value >> 128n;
@@ -193,21 +187,25 @@ function serializeProofToFelts(
 
   const felts: bigint[] = [];
 
+  // snarkjs (ffjavascript) outputs proof point coordinates as DECIMAL strings via
+  // F.toObject() which calls o.toString(10). Use BigInt() directly — do NOT use
+  // a hex-prefixed parse, which would misinterpret decimal digits as hex.
+  //
   // pi_a: G1 point (x, y)
   for (const coord of [proof.pi_a[0], proof.pi_a[1]]) {
-    felts.push(...u256ToFelts(toBigInt(coord)));
+    felts.push(...u256ToFelts(BigInt(coord)));
   }
 
-  // pi_b: G2 point (x0, x1, y0, y1) — note G2 coords are Fq2 elements
+  // pi_b: G2 point (x0, x1, y0, y1) — Fq2 elements, also decimal strings
   for (const pair of [proof.pi_b[0], proof.pi_b[1]]) {
     for (const coord of pair) {
-      felts.push(...u256ToFelts(toBigInt(coord)));
+      felts.push(...u256ToFelts(BigInt(coord)));
     }
   }
 
   // pi_c: G1 point (x, y)
   for (const coord of [proof.pi_c[0], proof.pi_c[1]]) {
-    felts.push(...u256ToFelts(toBigInt(coord)));
+    felts.push(...u256ToFelts(BigInt(coord)));
   }
 
   // Public signals (7 values for pool.circom)

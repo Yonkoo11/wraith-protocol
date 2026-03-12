@@ -105,13 +105,39 @@ scripts/rpc-proxy.mjs
 - scripts/rpc-proxy.mjs rewrites l2_gas_consumed→gas_consumed for starknet.js 6.24.1 compat
 - Run: `node scripts/rpc-proxy.mjs &` then `node tests/onchain.test.mjs`
 
+### Bug Fixes (3rd session, 2026-03-12) — withdrawal.test.mjs
+7. CRITICAL: serializeProofToFelts used toBigInt(coord) which prepended "0x" to decimal
+   coordinate strings from snarkjs/ffjavascript. snarkjs returns F.toObject() → o.toString(10)
+   = decimal strings. Prepending "0x" produced wrong BN254 field values that failed garaga's
+   is_on_curve check with ValueError: Point G1Point(...) is not on the curve CurveID.BN254.
+   Fix: BigInt(coord) directly (no hex prefix) in prover.ts + both test files.
+   This was invisible to 28/28 e2e tests because server middleware only checks public signals.
+
+### WithdrawalQueue + garaga path — VERIFIED (2026-03-12)
+Tests: tests/withdrawal.test.mjs — 7/7 phases PASSED
+- Phase 1: devnet deploy ✓
+- Phase 2: deposit on-chain ✓
+- Phase 3: Merkle root matches ✓
+- Phase 4: Groth16 proof generated + verifies locally ✓
+- Phase 5: 30-felt HTTP transport format correct ✓
+- Phase 6: garaga calldata 2918 felts, pool.withdraw() accepted on-chain ✓
+- Phase 7: nullifier stored, replay rejected on-chain ✓
+
+### Project CLAUDE.md — CREATED (2026-03-12)
+CLAUDE.md created at project root with 7-point privacy critique checklist:
+P1 server information leakage, P2 chain observer correlation, P3 anonymity set,
+P4 proof serialization correctness (toBigInt lesson codified), P5 log/header hygiene,
+P6 nullifier gap analysis, P7 trusted setup scope. Required test matrix included.
+
 ## What's NOT Done (remaining gaps)
-1. **Server-side Lit session signatures** — getLitSessionSigs() still throws stub error
+1. **Lit decrypt unverified** — getLitSessionSigs() written + tested (SIWE works against live Datil).
+   Decrypt is rate-limited without Capacity Credits. Run `node scripts/lit-setup.mjs` once to unlock.
+   `tests/lit.test.mjs`: 3/3 pass, 2 skipped (rate-limit, not code failure)
 2. **No testnet/mainnet deployment** — devnet only
 3. **STRK20Adapter is a stub** — STRK20 not yet publicly deployed (announced 2026-03-10)
 4. **1-party trusted setup** — not production-ready (need MPC ceremony)
 5. **RapidSnark** — snarkjs WASM is 4-6s; RapidSnark would be ~100ms
-6. **No e2e test for garaga calldata path** — WithdrawalQueue.submitWithdrawal() is the correct code path now but has not been exercised end-to-end (would require devnet + garaga + separate test setup)
+6. ~~e2e.test.mjs not re-run~~ — RE-VERIFIED 28/28 PASS (2026-03-12, post-toBigInt fix)
 
 ## STRK20 Context
 Starkware announced STRK20 on 2026-03-10. Technical deep dive coming in "a few days".
@@ -134,7 +160,8 @@ STRK20Adapter stub is ready to fill in. Monitor: https://strk20.starknet.io/
 | tests/onchain.test.mjs | 8/8 | PASS |
 | tests/server.test.mjs | 13/13 | PASS |
 | tests/integration.test.mjs | 26/26 | PASS |
-| tests/e2e.test.mjs | 28/28 | PASS |
+| tests/e2e.test.mjs | 28/28 | PASS (re-verified post-toBigInt fix) |
+| tests/withdrawal.test.mjs | 7/7 phases | PASS |
 
 ## Deployed
 - GitHub Pages: https://yonkoo11.github.io/wraith-protocol/ (rebuilds on push to main)

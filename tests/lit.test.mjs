@@ -15,7 +15,6 @@
  */
 
 import { LitNodeClient } from '@lit-protocol/lit-node-client';
-import { LitContracts } from '@lit-protocol/contracts-sdk';
 import { encryptString, decryptToString } from '@lit-protocol/encryption';
 import { createSiweMessage, generateAuthSig, LitAccessControlConditionResource } from '@lit-protocol/auth-helpers';
 import { LIT_ABILITY, LIT_RPC } from '@lit-protocol/constants';

@@ -120,24 +120,24 @@ function u256ToFelts(v) {
   return [v & ((1n << 128n) - 1n), v >> 128n];
 }
 
-function toBigInt(hex) {
-  return BigInt(hex.startsWith('0x') ? hex : '0x' + hex);
-}
-
 // Serialize snarkjs proof to 30-felt HTTP transport format.
 // [pi_a (4), pi_b (8), pi_c (4), public_signals (14)] = 30 felts
+//
+// snarkjs (ffjavascript) returns proof coordinates as DECIMAL strings via
+// F.toObject() -> o.toString(10). Use BigInt(coord) directly.
+// DO NOT prepend "0x" — that misinterprets decimal digits as hex.
 function serializeProofToFelts(proof, publicSignals) {
   const felts = [];
   for (const coord of [proof.pi_a[0], proof.pi_a[1]]) {
-    felts.push(...u256ToFelts(toBigInt(coord)));
+    felts.push(...u256ToFelts(BigInt(coord)));
   }
   for (const pair of [proof.pi_b[0], proof.pi_b[1]]) {
     for (const coord of pair) {
-      felts.push(...u256ToFelts(toBigInt(coord)));
+      felts.push(...u256ToFelts(BigInt(coord)));
     }
   }
   for (const coord of [proof.pi_c[0], proof.pi_c[1]]) {
-    felts.push(...u256ToFelts(toBigInt(coord)));
+    felts.push(...u256ToFelts(BigInt(coord)));
   }
   for (const sig of publicSignals) {
     felts.push(...u256ToFelts(BigInt(sig)));

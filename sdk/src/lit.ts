@@ -1,27 +1,26 @@
 /**
- * Lit Protocol integration — encrypt (secret, nullifier) bundles for x402 flow
+ * Lit Protocol integration — optional encrypted note storage for Wraith agents
  *
- * Why Lit Protocol:
- * - Agent deposits into privacy pool (deposit tx hash is public)
- * - Agent needs to send (secret, nullifier) to the API so it can generate the withdrawal proof
- * - Sending these in plaintext defeats the privacy guarantee
- * - Lit encrypts the bundle so only the API (owner of withdrawalAddress) can decrypt
- * - David Sneider (Lit co-founder) is a PL Genesis judge — this is also strategic
+ * Use case (v1):
+ * - Agent generates (secret, nullifier) locally and produces the ZK proof client-side
+ * - The server NEVER sees (secret, nullifier) — that is not what Lit is used for here
+ * - Lit is used ONLY for cross-device note recovery: agent encrypts the note bundle
+ *   so it can store it off-device and decrypt it later from another session
+ *
+ * What Lit does NOT do in Wraith v1:
+ * - Does NOT send (secret, nullifier) to the server for proof generation (that was
+ *   the pre-v1 design and is a fundamental privacy flaw — removed)
+ * - Does NOT gate proof generation on-chain
+ * - Is NOT on the critical payment path
  *
  * Access condition:
- * - The API server must be the holder of withdrawalAddress on Starknet
- * - OR: the API authenticates with a Lit session signature
- * - We use the simplest path: condition = "must sign with API's Starknet address"
+ * - Encrypts note so only the holder of apiEthAddress can decrypt
+ * - apiEthAddress is an Ethereum address (not Starknet) — Lit v7 does not support
+ *   native Starknet access conditions as of 2026-03
+ * - Server authenticates with a dedicated Ethereum key (SERVER_ETH_PRIVATE_KEY)
  *
- * SDK version: v7 (@lit-protocol/lit-node-client, @lit-protocol/encryption)
- * Packages needed:
- *   npm install @lit-protocol/lit-node-client @lit-protocol/encryption @lit-protocol/constants @lit-protocol/auth-helpers
- *
- * NOTE: Lit SDK is NOT installed in the current package.json.
- * The current package.json has @lit-protocol/lit-node-client@^6.6.2 which is outdated.
- * Update to v7 before using this module.
- * Also: Lit v7 does not support Node.js ESM cleanly — may need --experimental-vm-modules
- * or switch to CJS for the server target.
+ * SDK: @lit-protocol/lit-node-client@^7.4, @lit-protocol/encryption@^7.4,
+ *      @lit-protocol/auth-helpers@^7.4, @lit-protocol/constants@^7.4
  */
 
 export interface EncryptedNote {
@@ -107,11 +106,74 @@ export async function encryptNoteForAPI(
 }
 
 /**
- * Decrypt a (secret, nullifier) bundle.
- * Called by the API server to get the note data for withdrawal proof generation.
+ * Get Lit session signatures for a server ETH key (SIWE flow).
  *
- * @param encrypted - The encrypted bundle from the agent
- * @param sessionSigs - Lit session signatures (API server must authenticate)
+ * Call this before decryptNoteFromAgent() to authenticate with the Lit network.
+ * The signer must be the ethers.Wallet whose address matches the access condition
+ * used in encryptNoteForAPI().
+ *
+ * @param signer      - ethers.Wallet with the server's ETH private key
+ * @param litNetwork  - 'datil' (production) or 'datil-dev' (local testing)
+ * @param capacityDelegationAuthSig - optional capacity delegation for rate limits
+ */
+export async function getLitSessionSigs(
+  signer: import('ethers').Wallet,
+  litNetwork = 'datil',
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  capacityDelegationAuthSig?: any
+): Promise<Record<string, unknown>> {
+  const { LitNodeClient } = await import('@lit-protocol/lit-node-client');
+  const {
+    createSiweMessage,
+    generateAuthSig,
+    LitAccessControlConditionResource,
+  } = await import('@lit-protocol/auth-helpers');
+  const { LIT_ABILITY } = await import('@lit-protocol/constants');
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const client = new LitNodeClient({ litNetwork: litNetwork as any, debug: false });
+  await client.connect();
+
+  const latestBlockhash = await client.getLatestBlockhash();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const params: any = {
+    chain: 'ethereum',
+    expiration: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+    resourceAbilityRequests: [
+      {
+        resource: new LitAccessControlConditionResource('*'),
+        ability: LIT_ABILITY.AccessControlConditionDecryption,
+      },
+    ],
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    authNeededCallback: async (cbParams: any) => {
+      const toSign = await createSiweMessage({
+        uri:           cbParams.uri ?? 'https://localhost',
+        expiration:    cbParams.expiration,
+        resources:     cbParams.resourceAbilityRequests,
+        walletAddress: signer.address,
+        nonce:         latestBlockhash,
+        litNodeClient: client,
+      });
+      return generateAuthSig({ signer, toSign });
+    },
+  };
+
+  if (capacityDelegationAuthSig) {
+    params.capacityDelegationAuthSig = capacityDelegationAuthSig;
+  }
+
+  const sessionSigs = await client.getSessionSigs(params);
+  await client.disconnect();
+  return sessionSigs as Record<string, unknown>;
+}
+
+/**
+ * Decrypt a (secret, nullifier) bundle.
+ *
+ * @param encrypted   - The encrypted bundle from the agent
+ * @param sessionSigs - Lit session sigs from getLitSessionSigs()
  */
 export async function decryptNoteFromAgent(
   encrypted: EncryptedNote,
