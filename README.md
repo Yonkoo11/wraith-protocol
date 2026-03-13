@@ -1,100 +1,163 @@
 # Wraith Protocol
 
-Private AI agent payments on Starknet using ZK proofs.
+ZK-native private payments for AI agents on Starknet.
 
-Pay for API calls without linking your identity to your on-chain activity. One deposit into a shared pool. Withdraw to any address. The server only learns the payment happened — not who paid.
+An AI agent deposits into a shared pool. Later, it pays an API server using a Groth16 zero-knowledge proof — without revealing which deposit funded the payment. The server learns the payment happened and verifies it cryptographically. It does not learn who paid.
+
+Built on [x402](https://x402.org) (HTTP 402 payment protocol) and deployed on Starknet devnet.
+
+---
+
+## The problem
+
+AI agents make millions of API calls. Every payment today links the agent's on-chain identity to its activity. An observer watching the chain can reconstruct what the agent did, who it talked to, and when.
+
+x402 solves the payment rail. Wraith solves the identity problem.
+
+---
+
+## How it works
+
+```
+Agent                            Server
+  │                                │
+  │── GET /api ───────────────────>│
+  │<── 402 Payment Required ───────│  { amount, poolAddress, challenge }
+  │                                │
+  │  generate Groth16 proof (~4s)  │  proves: "I own a note in this pool"
+  │  private: secret, nullifier    │  without revealing: which deposit
+  │  public:  root, nullifierHash  │
+  │                                │
+  │── POST /api ──────────────────>│
+  │   X-Payment-Proof: <proof>     │── verify Groth16 proof (garaga on-chain)
+  │                                │── check nullifier (prevent double-spend)
+  │<── 200 OK ─────────────────────│── queue pool.withdraw() on Starknet
+```
+
+The proof is verified by a garaga 0.15.3 verifier deployed on Starknet. The nullifier is stored to prevent reuse.
+
+---
+
+## What's been verified
+
+Tested against starknet-devnet 0.7.2 (seed 42):
+
+- **8/8** on-chain tests — deposit → Groth16 proof → garaga calldata → `pool.withdraw()`
+- **13/13** server middleware tests
+- **26/26** SDK integration tests — circuit, Merkle tree, proof generation, serialization
+- **28/28** HTTP x402 end-to-end tests — full 402 challenge → ZK proof → 200 flow
+- **7/7** WithdrawalQueue phases — proof queuing, garaga calldata generation, on-chain withdrawal
+
+---
+
+## Running it
+
+```bash
+# Prerequisites: Node 20+, starknet-devnet, snarkjs
+
+# 1. Start devnet
+starknet-devnet --seed 42
+
+# 2. Start RPC proxy (starknet.js compatibility)
+node scripts/rpc-proxy.mjs &
+
+# 3. Run tests in order
+node tests/onchain.test.mjs       # deploy contracts, test on-chain flow
+node tests/server.test.mjs        # middleware
+node tests/integration.test.mjs   # SDK
+node tests/e2e.test.mjs           # full HTTP x402 flow
+node tests/withdrawal.test.mjs    # withdrawal queue + garaga
+```
+
+---
 
 ## Packages
 
-| Package | Description |
-|---------|-------------|
-| `wraith-agent` | SDK for AI agents to generate and send ZK payment proofs |
-| `wraith-server` | Express middleware for APIs to accept Wraith payments |
+| Package | Path | Description |
+|---------|------|-------------|
+| `wraith-agent` | `sdk/` | SDK for agents: deposit, generate ZK proofs, pay via x402 |
+| `wraith-server` | `server/` | Express middleware: verify proofs, prevent double-spend, queue withdrawals |
 
-## Quick start — Agent side
-
-```bash
-npm install wraith-agent
-```
+### Agent SDK
 
 ```ts
-import { WraithAgent } from 'wraith-agent';
+import { WraithAgent } from './sdk/src/agent';
+import { Account, RpcProvider } from 'starknet';
+
+const provider = new RpcProvider({ nodeUrl: RPC_URL });
+const account  = new Account(provider, ADDRESS, PRIVATE_KEY);
 
 const agent = new WraithAgent({
-  poolAddress: '0x...',
-  providerUrl: 'https://starknet-mainnet.infura.io/v3/...',
+  adapter: 'privacy-pools',
+  poolAddress: POOL_ADDRESS,
+  starknetRpcUrl: RPC_URL,
+  account,
 });
 
-// Agent automatically handles x402 challenges and pays with ZK proofs
-const response = await agent.fetch('https://api.example.com/v1/chat', {
-  method: 'POST',
-  body: JSON.stringify({ prompt: 'Hello' }),
+// Deposit once
+await agent.deposit(1_000_000n); // 1 STRK (18 decimals)
+
+// Pay any x402-compatible API — no trace to your deposit address
+const response = await agent.pay('https://api.example.com/v1/generate', {
+  amount: 100n,
+  token: 'STRK',
 });
 ```
 
-## Quick start — Server side
-
-```bash
-npm install wraith-server
-```
+### Server middleware
 
 ```ts
 import express from 'express';
-import { wraithPaywall } from 'wraith-server';
-import { Account, RpcProvider } from 'starknet';
+import { wraithPaywall } from './server/src/middleware';
 
 const app = express();
-const provider = new RpcProvider({ nodeUrl: process.env.STARKNET_RPC });
-const account = new Account(provider, process.env.SERVER_ADDRESS, process.env.SERVER_KEY);
 
-app.post('/v1/chat/completions',
-  wraithPaywall({
-    amount: 3000n,          // 0.003 USDC (6 decimals)
-    token: 'USDC',
-    poolAddress: '0x...',
-    account,
-    provider,
-  }),
-  (req, res) => {
-    res.json({ message: 'Paid access granted' });
-  }
-);
+app.use('/v1/generate', wraithPaywall({
+  amount: 100n,
+  poolAddress: POOL_ADDRESS,
+  account,        // server's Starknet account for withdrawals
+  flushIntervalMs: 300_000,  // batch withdrawals every 5min (timing privacy)
+}));
 ```
 
-## Architecture
-
-```
-Agent                          Server
-  │                              │
-  │── GET /api ─────────────────>│
-  │<── 402 { challenge } ────────│
-  │                              │
-  │  [generate ZK proof ~4s]     │
-  │                              │
-  │── POST /api ────────────────>│
-  │   X-Payment-Proof: <proof>   │── verify proof
-  │                              │── check nullifier (no double-spend)
-  │<── 200 { response } ─────────│── queue withdrawal to pool
-```
-
-The proof proves the agent controls a note in the pool without revealing which deposit it came from.
+---
 
 ## Privacy model
 
-- **Link-private**: deposit and withdrawal addresses are not linked on-chain
-- **Not identity-private**: the depositor address is visible at deposit time
-- **Anonymity set**: privacy depends on pool size. Small pool = weaker privacy
-- **Trusted setup**: 1-party (local Powers of Tau). Not production-ready; MPC ceremony needed
-- **Quantum**: BN254/Groth16 is not quantum-resistant
+| Property | Status |
+|----------|--------|
+| Deposit ↔ withdrawal link | Hidden by ZK proof |
+| Depositor address | Visible on-chain at deposit time |
+| Payment amount | Public on-chain |
+| Which deposit funded the payment | Cryptographically hidden |
+| Double-spend prevention | Nullifier hash stored on-chain |
 
-See `THREAT_MODEL.md` for the full analysis.
+**Anonymity set**: privacy scales with pool size. 3 depositors → 3-candidate set. Withdraw into a pool of 1 = no privacy.
 
-## Known limits
+---
 
-1. 1-party trusted setup — local Powers of Tau only
-2. In-memory nullifier set — lost on restart, needs Redis for production
-3. Proof generation ~4-6s with snarkjs WASM (RapidSnark would be ~100ms)
-4. Small pool = trivial deanonymization
+## Known limits (honest)
+
+1. **1-party trusted setup** — local Powers of Tau. Not production. MPC ceremony needed.
+2. **In-memory nullifier set** — lost on server restart (double-spend window). Redis needed for production.
+3. **No relay** — server operator sees nullifierHash + withdrawal tx. Full correlation graph. Documented in THREAT_MODEL.md.
+4. **Proof generation ~4-6s** — snarkjs WASM. RapidSnark (~100ms) not yet integrated.
+5. **Partial withdrawals blocked** — circuit supports them via `refundCommitmentHash`, but no `claimRefund()` path exists in v1. Attempting a partial withdrawal returns a hard error.
+6. **BN254 is not quantum-resistant** — v2 path is STARK proofs on Starknet's native hash.
+
+See [`THREAT_MODEL.md`](docs/THREAT_MODEL.md) for the full analysis.
+
+---
+
+## Stack
+
+- **Circuit**: Circom 2 + Groth16/BN254 + Poseidon2
+- **On-chain verifier**: garaga 0.15.3 (Starknet)
+- **Proof generation**: snarkjs WASM
+- **Payment protocol**: x402 (HTTP 402)
+- **Chain**: Starknet (Cairo contracts)
+
+---
 
 ## License
 
