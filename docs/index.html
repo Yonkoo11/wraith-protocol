@@ -196,7 +196,8 @@ nav {
   height: 100vh;
   min-height: 620px;
   overflow: hidden;
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   align-items: center;
   background:
     radial-gradient(ellipse 55% 65% at 72% 44%, rgba(88,28,135,0.10) 0%, transparent 68%),
@@ -207,9 +208,82 @@ nav {
   position: relative;
   z-index: 2;
   padding: 0 48px;
-  max-width: 600px;
   margin-top: 56px;
 }
+
+.hero-proof {
+  position: relative;
+  z-index: 2;
+  padding: 0 48px 0 24px;
+  margin-top: 56px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.hero-proof-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  color: var(--text-3);
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.hero-proof-block {
+  background: rgba(255,255,255,0.025);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 16px 18px;
+}
+
+.hero-proof-block + .hero-proof-block {
+  margin-top: 0;
+}
+
+.hero-proof-block-title {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+
+.hero-proof-block.public .hero-proof-block-title { color: var(--purple-bright); }
+.hero-proof-block.private .hero-proof-block-title { color: var(--text-3); }
+
+.hero-proof-field {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 3px 0;
+}
+
+.hero-proof-field + .hero-proof-field {
+  border-top: 1px solid rgba(255,255,255,0.04);
+}
+
+.hero-proof-key {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: #64748b;
+  min-width: 160px;
+  flex-shrink: 0;
+}
+
+.hero-proof-val {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hero-proof-val.purple { color: var(--purple-bright); }
+.hero-proof-val.dim { color: #334155; font-size: 10px; }
 
 .hero-wordmark {
   font-size: 12px;
@@ -811,7 +885,7 @@ pre.code {
 }
 
 .limit-card.limit-critical {
-  border-left: 3px solid rgba(239,68,68,0.55);
+  border-left: 3px solid var(--border);
 }
 
 .limit-card-num {
@@ -994,6 +1068,8 @@ footer {
     gap: 12px;
   }
   .mechanism-arrow { display: none; }
+  .hero { grid-template-columns: 1fr; }
+  .hero-proof { display: none; }
 }
 
 @media (max-width: 768px) {
@@ -1003,6 +1079,8 @@ footer {
   .nav-hamburger { display: flex; }
   .nav-drawer { display: block; }
 
+  .hero { grid-template-columns: 1fr; }
+  .hero-proof { display: none; }
   .hero-content { padding: 0 24px; max-width: 100%; }
 
   .hero-headline { font-size: clamp(28px, 9vw, 44px); }
@@ -1083,6 +1161,49 @@ footer {
     <div class="hero-ctas">
       <a href="#contract" class="btn-primary">Read the Protocol ↓</a>
       <a href="https://github.com/Yonkoo11/wraith-protocol" target="_blank" rel="noopener" class="btn-secondary">GitHub ↗</a>
+    </div>
+  </div>
+
+  <!-- Proof schema panel — static, meaningful to ZK audience -->
+  <div class="hero-proof">
+    <div class="hero-proof-label">Groth16 proof schema</div>
+    <div class="hero-proof-block public">
+      <div class="hero-proof-block-title">Public inputs (on-chain visible)</div>
+      <div class="hero-proof-field">
+        <span class="hero-proof-key">merkleRoot</span>
+        <span class="hero-proof-val purple">0x1a4f…c83d</span>
+      </div>
+      <div class="hero-proof-field">
+        <span class="hero-proof-key">nullifierHash</span>
+        <span class="hero-proof-val purple">0x9b2e…7f01</span>
+      </div>
+      <div class="hero-proof-field">
+        <span class="hero-proof-key">recipient</span>
+        <span class="hero-proof-val purple">0x04a1…88bc</span>
+      </div>
+      <div class="hero-proof-field">
+        <span class="hero-proof-key">amount</span>
+        <span class="hero-proof-val purple">100 STRK</span>
+      </div>
+    </div>
+    <div class="hero-proof-block private">
+      <div class="hero-proof-block-title">Private witness (never leaves prover)</div>
+      <div class="hero-proof-field">
+        <span class="hero-proof-key">secret</span>
+        <span class="hero-proof-val dim">••••••••••••••••••••••••</span>
+      </div>
+      <div class="hero-proof-field">
+        <span class="hero-proof-key">nullifier</span>
+        <span class="hero-proof-val dim">••••••••••••••••••••••••</span>
+      </div>
+      <div class="hero-proof-field">
+        <span class="hero-proof-key">merklePathElements</span>
+        <span class="hero-proof-val dim">••••••••••••</span>
+      </div>
+      <div class="hero-proof-field">
+        <span class="hero-proof-key">merklePathIndices</span>
+        <span class="hero-proof-val dim">••••</span>
+      </div>
     </div>
   </div>
 </section>
