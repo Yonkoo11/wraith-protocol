@@ -67,7 +67,7 @@ const VERIFIER_SIERRA    = '/tmp/cipher-pol-deploy/target/dev/pool_Groth16Verifi
 const POOL_SIERRA        = '/tmp/cipher-pol-deploy/target/dev/pool_Pool.contract_class.json';
 const ECIP_SIERRA        = '/tmp/cipher-pol-deploy/target/dev/pool_UniversalECIP.contract_class.json';
 const STARKLI_ACCT       = '/tmp/devnet-account.json';
-const VERIFIER_CASM_HASH = '0x4ab33c632f8f86806bfc63a7316a9dc3de26a5226732ad764eea9b4f0d2b495';
+const VERIFIER_CASM_HASH = '0x5a4520f3c48d98c3090e68df7aee9e60e2c28543fe8b1ce8d25152caecb5906';
 const POOL_CASM_HASH     = '0x668d8e903eaf4a0199c302fb03f64b2474b2fc323c222d57a48a45234b40e76';
 const ECIP_CASM_HASH     = '0x763b4a30ba03df108a073f0380af6a1397eaac70e8bd78caf6a4127e9a5f245';
 
