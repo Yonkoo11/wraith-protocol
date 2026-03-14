@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Wraith Protocol — Private Payments for AI Agents</title>
+<title>Cipher Pol — Private Payments for AI Agents</title>
 <meta name="description" content="ZK-native private payments for AI agents on Starknet. Groth16 proofs unlink deposit from payment. x402 protocol. Honest limits documented.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1117,7 +1117,7 @@ footer {
 
 <!-- ═══ NAV ═══ -->
 <nav>
-  <a href="#" class="nav-logo"><span class="diamond">◈</span> WRAITH</a>
+  <a href="#" class="nav-logo"><span class="diamond">◈</span> CIPHER POL</a>
 
   <div class="nav-right">
     <ul class="nav-links">
@@ -1147,7 +1147,7 @@ footer {
 <!-- ═══ HERO ═══ -->
 <section class="hero">
   <div class="hero-content">
-    <div class="hero-wordmark"><span class="diamond">◈</span> WRAITH PROTOCOL</div>
+    <div class="hero-wordmark"><span class="diamond">◈</span> CIPHER POL</div>
     <h1 class="hero-headline">Cryptographic guarantee.<br>Not a promise.</h1>
     <p class="hero-sub">Private payments for AI agents. <strong>The deposit is unlinked from the payment</strong> — by Groth16 zero-knowledge proof, not policy.</p>
     <div class="hero-stack">
@@ -1261,7 +1261,7 @@ footer {
             <span class="contract-row-label">Depositor address at deposit time</span>
             <span class="expand-indicator">›</span>
           </div>
-          <div class="contract-row-reason">Emitted in the on-chain Deposit event. Anyone watching the chain sees your address deposited into the pool. Wraith is link-private, not identity-private.</div>
+          <div class="contract-row-reason">Emitted in the on-chain Deposit event. Anyone watching the chain sees your address deposited into the pool. Cipher Pol is link-private, not identity-private.</div>
         </div>
         <div class="contract-row" onclick="this.classList.toggle('expanded')">
           <div class="contract-row-main">
@@ -1429,7 +1429,7 @@ footer {
         </div>
 
         <p class="risk-note" style="margin-top:24px;">
-          Wraith's privacy guarantee is only as strong as the number of other depositors in the pool. A chain observer sees all deposits. With 3 depositors, they narrow candidates to 3.
+          Cipher Pol's privacy guarantee is only as strong as the number of other depositors in the pool. A chain observer sees all deposits. With 3 depositors, they narrow candidates to 3.
         </p>
         <p class="risk-note" style="margin-top:14px;">
           <strong>Never withdraw immediately after depositing.</strong> The default <code>flushIntervalMs=300000</code> (5 minutes) batches withdrawals to break timing correlation. Setting it to 0 creates a 1-to-1 timestamp link that defeats the ZK unlinking.
@@ -1444,7 +1444,7 @@ footer {
   <div class="section-inner">
     <div class="section-label fade-up">Section 04</div>
     <div class="section-divider fade-up"></div>
-    <h2 class="section-title fade-up d1">Build with Wraith</h2>
+    <h2 class="section-title fade-up d1">Build with Cipher Pol</h2>
     <p class="section-sub fade-up d2">SDK for agents and servers. Protocol transport documented below.</p>
 
     <div class="tabs fade-up d3">
@@ -1620,7 +1620,7 @@ HTTP/1.1 <span class="num">200</span> OK
         <div class="limit-card-num">Limit 02</div>
         <div class="limit-card-title">Depositor Address is Visible</div>
         <div class="limit-card-body">
-          When you call <code>pool.deposit()</code>, your Starknet address appears in the Deposit event. Anyone watching the chain knows you participated in this pool. Wraith hides the <em>link</em> between your deposit and the withdrawal — not your participation.
+          When you call <code>pool.deposit()</code>, your Starknet address appears in the Deposit event. Anyone watching the chain knows you participated in this pool. Cipher Pol hides the <em>link</em> between your deposit and the withdrawal — not your participation.
         </div>
       </div>
 
@@ -1636,7 +1636,7 @@ HTTP/1.1 <span class="num">200</span> OK
         <div class="limit-card-num">Limit 04</div>
         <div class="limit-card-title">Anonymity Set Size</div>
         <div class="limit-card-body">
-          If only 3 people have ever deposited into the pool, a chain observer narrows candidates to 3. Privacy scales directly with pool adoption. Do not use Wraith for sensitive payments when <code>pool.size &lt; 50</code>. At <code>pool.size = 1</code> there is zero anonymity.
+          If only 3 people have ever deposited into the pool, a chain observer narrows candidates to 3. Privacy scales directly with pool adoption. Do not use Cipher Pol for sensitive payments when <code>pool.size &lt; 50</code>. At <code>pool.size = 1</code> there is zero anonymity.
         </div>
       </div>
 
@@ -1715,7 +1715,7 @@ HTTP/1.1 <span class="num">200</span> OK
 <!-- ═══ FOOTER ═══ -->
 <footer>
   <div class="footer-brand">
-    <div class="footer-brand-name"><span class="diamond">◈</span> WRAITH PROTOCOL</div>
+    <div class="footer-brand-name"><span class="diamond">◈</span> CIPHER POL</div>
     <div class="footer-brand-sub">Research implementation. Not audited.</div>
   </div>
   <ul class="footer-links">

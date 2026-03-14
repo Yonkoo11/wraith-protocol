@@ -1,4 +1,4 @@
-# Wraith Protocol
+# Cipher Pol
 
 ZK-native private payments for AI agents on Starknet.
 
@@ -12,7 +12,7 @@ Built on [x402](https://x402.org) (HTTP 402 payment protocol) and deployed on St
 
 AI agents make millions of API calls. Every payment today links the agent's on-chain identity to its activity. An observer watching the chain can reconstruct what the agent did, who it talked to, and when.
 
-x402 solves the payment rail. Wraith solves the identity problem.
+x402 solves the payment rail. Cipher Pol solves the identity problem.
 
 ---
 
