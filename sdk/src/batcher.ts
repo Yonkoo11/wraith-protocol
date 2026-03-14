@@ -2,7 +2,7 @@
  * PaymentBatcher — groups payments into time windows + amount buckets
  * to break timing correlation and amount-based deanonymization attacks.
  *
- * STATUS: NOT YET INTEGRATED. WraithAgent.pay() calls generatePaymentProof()
+ * STATUS: NOT YET INTEGRATED. CipherPolAgent.pay() calls generatePaymentProof()
  * directly and does NOT go through this batcher. The flush() stub resolves
  * with a zeroed Note (secret=0n, nullifier=0n) which would fail proof generation.
  * Do not instantiate this class until v2 batch tx support is implemented.
@@ -103,8 +103,8 @@ export class PaymentBatcher {
     // TODO: in v2, aggregate into a single batched tx when STRK20 supports it
     for (const item of batch) {
       // Signal that this item should be processed now
-      // Actual deposit happens in WraithAgent which holds the adapter
-      // We resolve with a placeholder note — WraithAgent overwrites this
+      // Actual deposit happens in CipherPolAgent which holds the adapter
+      // We resolve with a placeholder note — CipherPolAgent overwrites this
       item.resolve({
         secret: 0n,
         nullifier: 0n,

@@ -1,5 +1,5 @@
 /**
- * Demo API server with Wraith x402 paywall (correct privacy-preserving flow)
+ * Demo API server with Cipher Pol x402 paywall (correct privacy-preserving flow)
  *
  * This server accepts payments where the agent generates the ZK proof CLIENT-SIDE.
  * The server:
@@ -24,7 +24,7 @@
 
 import express, { type Request, type Response } from 'express';
 import { Account, RpcProvider } from 'starknet';
-import { wraithPaywall } from './middleware.js';
+import { cipherPolPaywall } from './middleware.js';
 import { WithdrawalQueue } from './withdrawal-queue.js';
 
 const app = express();
@@ -68,7 +68,7 @@ const REQUIRED_AMOUNT = 3000n;  // 0.003 USDC (6 decimals)
 
 app.post(
   '/v1/chat/completions',
-  wraithPaywall({
+  cipherPolPaywall({
     amount:        REQUIRED_AMOUNT,
     token:         'USDC',
     serverAddress: API_ADDRESS,
@@ -88,9 +88,9 @@ app.post(
     const lastMessage = messages[messages.length - 1]?.content ?? '';
 
     res.json({
-      id: `wraith-demo-${Date.now()}`,
+      id: `cipher-pol-demo-${Date.now()}`,
       object: 'chat.completion',
-      model: 'wraith-demo-v1',
+      model: 'cipher-pol-demo-v1',
       choices: [
         {
           index: 0,
@@ -121,8 +121,8 @@ app.get('/health', (_req: Request, res: Response) => {
 
 const PORT = parseInt(process.env.PORT ?? '3000');
 app.listen(PORT, () => {
-  console.log(`Wraith demo server on port ${PORT}`);
-  console.log(`POST /v1/chat/completions — requires 0.003 USDC Wraith payment`);
+  console.log(`Cipher Pol demo server on port ${PORT}`);
+  console.log(`POST /v1/chat/completions — requires 0.003 USDC Cipher Pol payment`);
   console.log(`GET  /health — server status`);
 });
 

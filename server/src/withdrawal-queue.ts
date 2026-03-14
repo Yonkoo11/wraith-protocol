@@ -41,7 +41,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { Account, RpcProvider } from 'starknet';
-import { deserializeProofFromFelts } from 'wraith-agent';
+import { deserializeProofFromFelts } from 'cipher-pol-agent';
 
 interface QueuedWithdrawal {
   zkProof: string[];
@@ -192,15 +192,15 @@ export class WithdrawalQueue {
     // predictable forensic artifact in /tmp.
     const tag = crypto.randomUUID();
     const tmpDir = os.tmpdir();
-    const proofPath  = path.join(tmpDir, `wraith-proof-${tag}.json`);
-    const pubPath    = path.join(tmpDir, `wraith-pub-${tag}.json`);
-    const cdOutPath  = path.join(tmpDir, `wraith-cd-${tag}.json`);
+    const proofPath  = path.join(tmpDir, `cipher-pol-proof-${tag}.json`);
+    const pubPath    = path.join(tmpDir, `cipher-pol-pub-${tag}.json`);
+    const cdOutPath  = path.join(tmpDir, `cipher-pol-cd-${tag}.json`);
 
     fs.writeFileSync(proofPath, JSON.stringify(proof));
     fs.writeFileSync(pubPath,   JSON.stringify(publicSignals));
 
     // Write Python script to a temp file to avoid shell-escaping issues
-    const pyPath = path.join(tmpDir, `wraith-garaga-${tag}.py`);
+    const pyPath = path.join(tmpDir, `cipher-pol-garaga-${tag}.py`);
     const pyScript = [
       'import sys, json',
       `sys.path.insert(0, '${this.config.garagaPath}/hydra')`,

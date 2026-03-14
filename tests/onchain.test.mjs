@@ -8,7 +8,7 @@
  *   - rpc-proxy.mjs running on :5051 (rewrites "pending" → "latest")
  *   - starkli on PATH
  *   - garaga on PATH
- *   - Compiled Sierra + CASM in /tmp/wraith-pool-deploy/target/dev/
+ *   - Compiled Sierra + CASM in /tmp/cipher-pol-deploy/target/dev/
  *
  * Run: node tests/onchain.test.mjs
  */
@@ -37,9 +37,9 @@ const ETH_ADDR  = '0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e0
 const ACC_ADDR  = '0x34ba56f92265f0868c57d3fe72ecab144fc96f97954bbbc4252cef8e8a979ba';
 const ACC_PK    = '0xb137668388dbe9acdfa3bc734cc2c469';
 
-const VERIFIER_SIERRA     = '/tmp/wraith-pool-deploy/target/dev/pool_Groth16VerifierBN254.contract_class.json';
-const POOL_SIERRA         = '/tmp/wraith-pool-deploy/target/dev/pool_Pool.contract_class.json';
-const ECIP_SIERRA         = '/tmp/wraith-pool-deploy/target/dev/pool_UniversalECIP.contract_class.json';
+const VERIFIER_SIERRA     = '/tmp/cipher-pol-deploy/target/dev/pool_Groth16VerifierBN254.contract_class.json';
+const POOL_SIERRA         = '/tmp/cipher-pol-deploy/target/dev/pool_Pool.contract_class.json';
+const ECIP_SIERRA         = '/tmp/cipher-pol-deploy/target/dev/pool_UniversalECIP.contract_class.json';
 const STARKLI_ACCT        = '/tmp/devnet-account.json';
 // CASM hashes that devnet 0.7.2's bundled compiler produces for these Sierra files.
 // Starkli 0.4.2 bundles a different compiler (2.9.4) than devnet, so we bypass
@@ -226,7 +226,7 @@ function assert(cond, msg) {
 }
 
 async function run() {
-  console.log('Wraith Protocol — On-Chain End-to-End Test\n');
+  console.log('Cipher Pol — On-Chain End-to-End Test\n');
 
   // ─── Setup ─────────────────────────────────────────────────────────────────
   const provider = new RpcProvider({ nodeUrl: RPC_URL });

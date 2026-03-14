@@ -1,5 +1,5 @@
 /**
- * WraithAgent — autonomous agent with private x402 payments
+ * CipherPolAgent — autonomous agent with private x402 payments
  *
  * The correct privacy-preserving payment flow:
  *
@@ -32,7 +32,7 @@
 
 import { Account } from 'starknet';
 import {
-  WraithConfig,
+  CipherPolConfig,
   Note,
   PaymentIntent,
   PrivacyScore,
@@ -54,18 +54,18 @@ import {
   type AgentReceipt,
 } from './erc8004.js';
 
-export class WraithAgent {
+export class CipherPolAgent {
   private readonly adapter: IPrivacyAdapter;
-  private readonly config: Required<WraithConfig>;
+  private readonly config: Required<CipherPolConfig>;
 
-  constructor(config: WraithConfig, account?: Account) {
+  constructor(config: CipherPolConfig, account?: Account) {
     this.config = {
       starknetRpcUrl: 'https://starknet-mainnet.public.blastapi.io',
       litNetwork: 'datil',
       storachaEmail: '',
       settlementFeeBps: 10,
       ...config,
-    } as Required<WraithConfig>;
+    } as Required<CipherPolConfig>;
 
     if (config.adapter === 'strk20') {
       this.adapter = new STRK20Adapter();
@@ -189,7 +189,7 @@ export class WraithAgent {
 
     const challenge = parseChallenge(probe);
     if (!challenge) {
-      throw new Error(`402 response missing valid Wraith payment challenge from ${url}`);
+      throw new Error(`402 response missing valid Cipher Pol payment challenge from ${url}`);
     }
 
     // 2. Generate Groth16 proof CLIENT-SIDE
@@ -284,7 +284,7 @@ export class WraithAgent {
 
     const challenge = parseChallenge(probe);
     if (!challenge) {
-      throw new Error(`402 response missing valid Wraith payment challenge from ${url}`);
+      throw new Error(`402 response missing valid Cipher Pol payment challenge from ${url}`);
     }
 
     // Generate proof and capture nullifierHash for the receipt

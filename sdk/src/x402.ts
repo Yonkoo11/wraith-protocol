@@ -1,5 +1,5 @@
 /**
- * x402 payment protocol for Wraith Protocol.
+ * x402 payment protocol for Cipher Pol.
  *
  * The x402 flow:
  *   1. Agent GETs/POSTs an API endpoint
@@ -37,18 +37,18 @@
 
 import { X402Challenge, X402PaymentProof, PaymentIntent } from './types.js';
 
-export const X402_SCHEME = 'wraith-starknet-v1';
+export const X402_SCHEME = 'cipher-pol-starknet-v1';
 
 /**
  * Parse a 402 response and extract the payment challenge.
  *
- * Format: Wraith-Starknet-v1 network="starknet-mainnet",token="STRK",amount="1000",payTo="0x...",poolAddress="0x..."
+ * Format: CipherPol-Starknet-v1 network="starknet-mainnet",token="STRK",amount="1000",payTo="0x...",poolAddress="0x..."
  */
 export function parseChallenge(response: Response): X402Challenge | null {
   if (response.status !== 402) return null;
 
   const auth = response.headers.get('WWW-Authenticate');
-  if (!auth?.startsWith('Wraith-Starknet')) return null;
+  if (!auth?.startsWith('CipherPol-Starknet')) return null;
 
   const params: Record<string, string> = {};
   for (const match of auth.matchAll(/(\w+)="([^"]+)"/g)) {

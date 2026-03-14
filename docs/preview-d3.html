@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>D3 — Circuit Data Flow · Wraith Protocol</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Inter:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#050508;--purple:#7c3aed;--purple-bright:#8b5cf6;
+  --text:#f1f5f9;--text-2:#94a3b8;--text-3:#475569;
+  --border:#1a1a2e;--border-bright:#252540;
+  --mono:'JetBrains Mono','SF Mono',monospace;
+  --sans:'Inter',system-ui,sans-serif;--rs:4px;
+}
+html,body{height:100%}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);overflow:hidden}
+nav{position:fixed;top:0;left:0;right:0;z-index:100;height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:rgba(5,5,8,0.85);backdrop-filter:blur(20px);border-bottom:1px solid var(--border)}
+.nav-logo{font-size:15px;font-weight:700;letter-spacing:.04em;text-decoration:none;color:var(--text);display:flex;align-items:center;gap:7px}
+.d{color:var(--purple)}
+.nav-links{display:flex;list-style:none}
+.nav-links a{font-size:13px;font-weight:500;color:var(--text-2);text-decoration:none;padding:6px 14px;transition:color .15s}
+.nav-links a:hover{color:var(--text)}
+.hero{position:relative;height:100vh;overflow:hidden;display:flex;align-items:center}
+#hero-canvas{position:absolute;inset:0;width:100%;height:100%}
+.hero-content{position:relative;z-index:2;padding:0 52px;max-width:580px;margin-top:56px}
+.hero-label{font-size:11px;font-weight:600;letter-spacing:.16em;color:var(--text-3);text-transform:uppercase;margin-bottom:20px;display:flex;align-items:center;gap:8px}
+.hero-headline{font-size:clamp(34px,5.2vw,62px);font-weight:700;line-height:1.05;letter-spacing:-.03em;margin-bottom:18px}
+.hero-sub{font-size:17px;color:var(--text-2);line-height:1.65;margin-bottom:28px;max-width:460px}
+.hero-sub strong{color:var(--text);font-weight:600}
+.hero-stack{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:32px}
+.hero-tag{font-family:var(--mono);font-size:11px;font-weight:500;color:var(--text-3);background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:var(--rs);padding:3px 9px;letter-spacing:.04em}
+.hero-ctas{display:flex;gap:12px}
+.btn-primary{font-size:14px;font-weight:600;color:#fff;background:var(--purple);border:1px solid var(--purple-bright);border-radius:var(--rs);padding:13px 26px;text-decoration:none;display:inline-flex;align-items:center;gap:7px;transition:background .15s}
+.btn-primary:hover{background:var(--purple-bright)}
+.btn-secondary{font-size:14px;font-weight:600;color:var(--text-2);background:transparent;border:1px solid var(--border-bright);border-radius:var(--rs);padding:13px 26px;text-decoration:none;display:inline-flex;align-items:center;gap:7px;transition:color .15s,border-color .15s}
+.btn-secondary:hover{color:var(--text);border-color:var(--text-3)}
+.badge{position:fixed;bottom:24px;right:24px;font-family:var(--mono);font-size:11px;color:var(--text-3);background:rgba(5,5,8,.92);border:1px solid var(--border-bright);border-radius:var(--rs);padding:6px 12px;z-index:200;letter-spacing:.04em}
+</style>
+</head>
+<body>
+<nav>
+  <a class="nav-logo" href="#"><span class="d">◈</span> WRAITH PROTOCOL</a>
+  <ul class="nav-links">
+    <li><a href="#">Protocol</a></li>
+    <li><a href="#">Docs</a></li>
+    <li><a href="#">GitHub ↗</a></li>
+  </ul>
+</nav>
+<section class="hero">
+  <canvas id="hero-canvas"></canvas>
+  <div class="hero-content">
+    <div class="hero-label"><span class="d">◈</span> WRAITH PROTOCOL</div>
+    <h1 class="hero-headline">Cryptographic guarantee.<br>Not a promise.</h1>
+    <p class="hero-sub">Private payments for AI agents. <strong>The deposit is unlinked from the payment</strong> — by Groth16 zero-knowledge proof, not policy.</p>
+    <div class="hero-stack">
+      <span class="hero-tag">Groth16</span>
+      <span class="hero-tag">BN254</span>
+      <span class="hero-tag">Poseidon2</span>
+      <span class="hero-tag">x402</span>
+      <span class="hero-tag">Starknet</span>
+    </div>
+    <div class="hero-ctas">
+      <a href="#" class="btn-primary">Read the Protocol ↓</a>
+      <a href="#" class="btn-secondary">GitHub ↗</a>
+    </div>
+  </div>
+</section>
+<div class="badge">D3 — ZK Circuit Data Flow</div>
+<script>
+(function() {
+  const canvas = document.getElementById('hero-canvas');
+  const ctx = canvas.getContext('2d');
+  let w = 0, h = 0;
+
+  function resize() {
+    w = canvas.width  = canvas.offsetWidth  || window.innerWidth  || 1440;
+    h = canvas.height = canvas.offsetHeight || window.innerHeight || 900;
+    buildGraph();
+  }
+
+  // ── Circuit graph ──────────────────────────────
+  // Nodes represent actual Wraith circuit components.
+  // Layout: left half of screen (hero text occupies left 40%, so
+  // the circuit spans from 38% to 96% of canvas width).
+  // Vertically centered.
+
+  let graphNodes = [], graphEdges = [];
+  const PARTICLE_POOL = 120;
+  let particles = [];
+
+  function buildGraph() {
+    if (w === 0) return;
+    // Horizontal bands: cx positions
+    const x0 = w * 0.40, x1 = w * 0.54, x2 = w * 0.68, x3 = w * 0.82, x4 = w * 0.94;
+    const cy = h * 0.50;
+
+    // Node definitions: id, label, sublabel, x, y, color, size
+    graphNodes = [
+      // Private inputs (left column)
+      { id:0, label:'amount',   sub:'private', x:x0, y:cy-h*0.18, r:28, color:'rgba(255,255,255,0.08)',  tc:'rgba(255,255,255,0.55)', sc:'rgba(255,255,255,0.22)' },
+      { id:1, label:'secret',   sub:'private', x:x0, y:cy,         r:28, color:'rgba(255,255,255,0.08)',  tc:'rgba(255,255,255,0.55)', sc:'rgba(255,255,255,0.22)' },
+      { id:2, label:'nullifier',sub:'private', x:x0, y:cy+h*0.18,  r:28, color:'rgba(255,255,255,0.08)',  tc:'rgba(255,255,255,0.55)', sc:'rgba(255,255,255,0.22)' },
+      // Poseidon2 hash
+      { id:3, label:'Poseidon2',sub:'hash fn', x:x1, y:cy-h*0.06, r:36, color:'rgba(124,58,237,0.14)',   tc:'rgba(160,120,255,0.90)', sc:'rgba(124,58,237,0.40)' },
+      // Commitment (on-chain, visible)
+      { id:4, label:'commitment',sub:'on-chain', x:x2, y:cy-h*0.20, r:30, color:'rgba(16,185,129,0.10)', tc:'rgba(52,211,153,0.85)', sc:'rgba(16,185,129,0.35)' },
+      // Nullifier hash (public output)
+      { id:5, label:'nullifier_hash',sub:'public', x:x2, y:cy+h*0.08, r:30, color:'rgba(255,255,255,0.06)', tc:'rgba(200,200,215,0.70)', sc:'rgba(255,255,255,0.20)' },
+      // Merkle root (public input)
+      { id:6, label:'merkle_root',sub:'public', x:x2, y:cy+h*0.26, r:28, color:'rgba(255,255,255,0.06)',  tc:'rgba(200,200,215,0.55)', sc:'rgba(255,255,255,0.18)' },
+      // Groth16 proof
+      { id:7, label:'Groth16',  sub:'proof',   x:x3, y:cy-h*0.06, r:36, color:'rgba(124,58,237,0.14)',   tc:'rgba(160,120,255,0.90)', sc:'rgba(124,58,237,0.40)' },
+      // Verified
+      { id:8, label:'verified', sub:'✓',       x:x4, y:cy-h*0.06, r:28, color:'rgba(16,185,129,0.12)',   tc:'rgba(52,211,153,0.90)', sc:'rgba(16,185,129,0.40)' },
+    ];
+
+    // Edges: [fromId, toId, particleColor]
+    graphEdges = [
+      [0, 3, 'rgba(255,255,255,0.65)'],  // amount → Poseidon2
+      [1, 3, 'rgba(255,255,255,0.65)'],  // secret → Poseidon2
+      [2, 3, 'rgba(255,255,255,0.65)'],  // nullifier → Poseidon2
+      [3, 4, 'rgba(52,211,153,0.70)'],   // Poseidon2 → commitment
+      [2, 5, 'rgba(200,200,215,0.50)'],  // nullifier → nullifier_hash (direct)
+      [4, 7, 'rgba(52,211,153,0.55)'],   // commitment → Groth16
+      [5, 7, 'rgba(200,200,215,0.50)'],  // nullifier_hash → Groth16
+      [6, 7, 'rgba(200,200,215,0.45)'],  // merkle_root → Groth16
+      [7, 8, 'rgba(160,120,255,0.80)'],  // Groth16 → verified
+    ];
+
+    // Spawn particles for each edge
+    particles = [];
+    graphEdges.forEach((edge, ei) => {
+      const count = edge[0] === 7 ? 4 : 3; // more on final edge
+      for (let i = 0; i < count; i++) {
+        particles.push({
+          edge: ei,
+          progress: i / count,
+          speed: 0.0018 + (ei % 3) * 0.0004,
+          color: edge[2],
+          r: 1.8 + (i % 2) * 0.6,
+        });
+      }
+    });
+  }
+
+  resize();
+  window.addEventListener('resize', resize);
+
+  let t = 0;
+  const breath = () => 0.5 + 0.5 * Math.sin(t * 0.009);
+
+  function drawNode(node) {
+    const b = breath();
+    // Outer glow for highlighted nodes
+    if (node.id === 3 || node.id === 7) {
+      const g = ctx.createRadialGradient(node.x, node.y, 0, node.x, node.y, node.r * 2.2);
+      const gc = node.id === 3 ? `rgba(124,58,237,${0.12 * b})` : `rgba(124,58,237,${0.10 * b})`;
+      g.addColorStop(0, gc); g.addColorStop(1, 'rgba(124,58,237,0)');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(node.x, node.y, node.r * 2.2, 0, Math.PI*2); ctx.fill();
+    }
+    // Node background
+    ctx.beginPath(); ctx.arc(node.x, node.y, node.r, 0, Math.PI*2);
+    ctx.fillStyle = node.color; ctx.fill();
+    // Node border
+    ctx.beginPath(); ctx.arc(node.x, node.y, node.r, 0, Math.PI*2);
+    ctx.strokeStyle = node.sc; ctx.lineWidth = 0.8; ctx.stroke();
+    // Label
+    ctx.font = `500 9px JetBrains Mono, monospace`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = node.tc; ctx.fillText(node.label, node.x, node.y - 5);
+    ctx.font = `8px JetBrains Mono, monospace`;
+    ctx.fillStyle = node.sc; ctx.fillText(node.sub, node.x, node.y + 7);
+  }
+
+  function drawEdge(edge) {
+    const A = graphNodes[edge[0]], B = graphNodes[edge[1]];
+    // Direction vector, clip to node radii
+    const dx = B.x - A.x, dy = B.y - A.y;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    const ux = dx/dist, uy = dy/dist;
+    const x0 = A.x + ux * A.r, y0 = A.y + uy * A.r;
+    const x1 = B.x - ux * B.r, y1 = B.y - uy * B.r;
+
+    ctx.beginPath();
+    ctx.strokeStyle = 'rgba(255,255,255,0.055)';
+    ctx.lineWidth = 0.5;
+    ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+  }
+
+  function drawParticle(p) {
+    const edge = graphEdges[p.edge];
+    const A = graphNodes[edge[0]], B = graphNodes[edge[1]];
+    const dx = B.x - A.x, dy = B.y - A.y;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    const ux = dx/dist, uy = dy/dist;
+    const x0 = A.x + ux * A.r, y0 = A.y + uy * A.r;
+    const x1 = B.x - ux * B.r, y1 = B.y - uy * B.r;
+    const len = Math.sqrt((x1-x0)**2 + (y1-y0)**2);
+
+    // Clamp progress to edge length
+    const prog = p.progress % 1;
+    const px = x0 + (x1 - x0) * prog;
+    const py = y0 + (y1 - y0) * prog;
+
+    // Fade at start/end of edge
+    const fadeA = Math.min(prog / 0.12, 1);
+    const fadeB = Math.min((1 - prog) / 0.12, 1);
+    const alpha = fadeA * fadeB;
+
+    ctx.beginPath(); ctx.arc(px, py, p.r, 0, Math.PI*2);
+    // Extract base rgba and apply fade
+    const c = p.color.replace(')', `,${alpha})`).replace('rgba(', 'rgba(');
+    // Simpler: just paint with global alpha
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = p.color;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
+  function draw() {
+    t++;
+    if (w === 0) { requestAnimationFrame(draw); return; }
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = '#050508'; ctx.fillRect(0, 0, w, h);
+
+    // Draw edges first (behind nodes)
+    graphEdges.forEach(e => drawEdge(e));
+
+    // Advance & draw particles
+    particles.forEach(p => {
+      p.progress += p.speed;
+      if (p.progress >= 1) p.progress -= 1;
+      drawParticle(p);
+    });
+
+    // Draw nodes on top
+    ctx.textBaseline = 'alphabetic';
+    graphNodes.forEach(n => drawNode(n));
+
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+</script>
+</body>
+</html>

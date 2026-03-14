@@ -37,10 +37,10 @@ pub trait IEkuboPool<TContractState> {
     fn current_root(self: @TContractState) -> u256;
 }
 
-/// WraithAgent on-chain identity (future: Starknet Account Abstraction)
+/// CipherPolAgent on-chain identity (future: Starknet Account Abstraction)
 /// Enables custom validation logic for agent payments.
 #[starknet::interface]
-pub trait IWraithAgent<TContractState> {
+pub trait ICipherPolAgent<TContractState> {
     /// Register a new payment channel with a counterparty API.
     fn open_channel(
         ref self: TContractState,

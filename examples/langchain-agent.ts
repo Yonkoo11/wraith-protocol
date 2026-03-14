@@ -1,5 +1,5 @@
 /**
- * Example: LangChain agent making private API payments via Wraith
+ * Example: LangChain agent making private API payments via Cipher Pol
  *
  * This shows how an AI agent (LangChain) can call paid API endpoints
  * (Perplexity, OpenAI, etc.) without linking its identity to its payments.
@@ -8,7 +8,7 @@
  */
 
 import { Account, RpcProvider } from 'starknet';
-import { WraithAgent } from '../sdk/src/index.js';
+import { CipherPolAgent } from '../sdk/src/index.js';
 
 // --- Setup ---
 
@@ -23,7 +23,7 @@ const account = new Account(
   process.env.AGENT_PRIVATE_KEY ?? '0x0'
 );
 
-const agent = new WraithAgent(
+const agent = new CipherPolAgent(
   {
     adapter: 'privacy-pools', // Use 'strk20' when repo ships
     starknetRpcUrl: process.env.STARKNET_RPC_URL,
@@ -34,7 +34,7 @@ const agent = new WraithAgent(
 // --- Show the user what privacy they actually have ---
 
 const score = agent.getPrivacyScore();
-console.log('\n=== Wraith Privacy Score ===');
+console.log('\n=== Cipher Pol Privacy Score ===');
 console.log(`Adapter:          ${score.adapter}`);
 console.log(`Depositor visible: ${score.depositorVisible}`);
 console.log(`Proof system:      ${score.proofSystem}`);
@@ -49,7 +49,7 @@ console.log('');
 // --- Make a private payment to a paid API ---
 
 async function askPerplexity(question: string): Promise<string> {
-  // Wraith handles the 402 challenge/response automatically
+  // Cipher Pol handles the 402 challenge/response automatically
   const response = await agent.pay(
     'https://api.perplexity.ai/chat/completions',
     {
@@ -82,8 +82,8 @@ async function main() {
     console.log('Answer:', answer);
   } catch (err) {
     // Perplexity doesn't actually support x402 yet — this will fail
-    // until Wraith's API server middleware is deployed
-    console.log('Expected: Perplexity does not yet support x402/Wraith middleware');
+    // until Cipher Pol's API server middleware is deployed
+    console.log('Expected: Perplexity does not yet support x402/Cipher Pol middleware');
     console.log('This example shows the agent-side code. Server-side middleware is next.');
   }
 }

@@ -1,5 +1,5 @@
 /**
- * Wraith Protocol — End-to-End Agent→HTTP→Server Integration Test
+ * Cipher Pol — End-to-End Agent→HTTP→Server Integration Test
  *
  * Tests the COMPLETE x402 payment flow with real ZK proofs:
  *   1. Deploy pool on devnet
@@ -45,7 +45,7 @@ const snarkjs = createRequire(import.meta.url)(
 const { buildPaymentHeader, X402_SCHEME, extractPublicInputs } = await import('../dist/x402.js');
 
 // Compiled server middleware
-const { wraithPaywall } = await import('../server/dist/middleware.js');
+const { cipherPolPaywall } = await import('../server/dist/middleware.js');
 
 // starknet.js
 const { RpcProvider, Account, constants, CallData, stark } = await import(
@@ -63,9 +63,9 @@ const ACC_ADDR = '0x34ba56f92265f0868c57d3fe72ecab144fc96f97954bbbc4252cef8e8a97
 const ACC_PK   = '0xb137668388dbe9acdfa3bc734cc2c469';
 
 // Compiled Sierra + CASM in /tmp from onchain.test.mjs setup
-const VERIFIER_SIERRA    = '/tmp/wraith-pool-deploy/target/dev/pool_Groth16VerifierBN254.contract_class.json';
-const POOL_SIERRA        = '/tmp/wraith-pool-deploy/target/dev/pool_Pool.contract_class.json';
-const ECIP_SIERRA        = '/tmp/wraith-pool-deploy/target/dev/pool_UniversalECIP.contract_class.json';
+const VERIFIER_SIERRA    = '/tmp/cipher-pol-deploy/target/dev/pool_Groth16VerifierBN254.contract_class.json';
+const POOL_SIERRA        = '/tmp/cipher-pol-deploy/target/dev/pool_Pool.contract_class.json';
+const ECIP_SIERRA        = '/tmp/cipher-pol-deploy/target/dev/pool_UniversalECIP.contract_class.json';
 const STARKLI_ACCT       = '/tmp/devnet-account.json';
 const VERIFIER_CASM_HASH = '0x4ab33c632f8f86806bfc63a7316a9dc3de26a5226732ad764eea9b4f0d2b495';
 const POOL_CASM_HASH     = '0x668d8e903eaf4a0199c302fb03f64b2474b2fc323c222d57a48a45234b40e76';
@@ -260,7 +260,7 @@ function startPaywallServer(serverAddress, poolAddress, requiredAmount = 1_000_0
   const app      = express();
   app.use(express.json());
 
-  app.post('/v1/chat/completions', wraithPaywall({
+  app.post('/v1/chat/completions', cipherPolPaywall({
     amount:        requiredAmount,
     token:         'ETH',
     serverAddress,
@@ -273,13 +273,13 @@ function startPaywallServer(serverAddress, poolAddress, requiredAmount = 1_000_0
       }
     },
   }), (req, res) => {
-    const w = req.wraith;
+    const w = req.cipherPol;
     res.json({
-      id:      `wraith-e2e-${Date.now()}`,
+      id:      `cipher-pol-e2e-${Date.now()}`,
       object:  'chat.completion',
-      model:   'wraith-demo-v1',
+      model:   'cipher-pol-demo-v1',
       choices: [{ index: 0, message: { role: 'assistant', content: 'E2E demo response' }, finish_reason: 'stop' }],
-      wraith: w ? {
+      cipherPol: w ? {
         paid:          w.paid,
         amount:        w.amount?.toString(),
         nullifierHash: w.nullifierHash,
@@ -303,7 +303,7 @@ function startPaywallServer(serverAddress, poolAddress, requiredAmount = 1_000_0
 // ─── Main test ────────────────────────────────────────────────────────────────
 
 async function run() {
-  console.log('Wraith Protocol — End-to-End Integration Test');
+  console.log('Cipher Pol — End-to-End Integration Test');
   console.log('agent deposit → ZK proof → HTTP x402 → server validates\n');
 
   // ─── Phase 1: Setup ──────────────────────────────────────────────────────────
@@ -357,7 +357,7 @@ async function run() {
   console.log();
 
   // ─── Phase 3: Start HTTP server ──────────────────────────────────────────────
-  console.log('Phase 3: Start API server with Wraith paywall');
+  console.log('Phase 3: Start API server with Cipher Pol paywall');
 
   // The API server's address is used as the ZK proof recipient.
   // In production this is a distinct keypair; for this test we reuse the devnet account.
@@ -382,7 +382,7 @@ async function run() {
 
   assert(probe.status === 402, `probe returns 402 (got ${probe.status})`);
   const wwwAuth = probe.headers.get('WWW-Authenticate');
-  assert(wwwAuth?.startsWith('Wraith-Starknet-v1'), `402 has correct scheme: ${wwwAuth?.slice(0, 40)}`);
+  assert(wwwAuth?.startsWith('CipherPol-Starknet-v1'), `402 has correct scheme: ${wwwAuth?.slice(0, 40)}`);
   assert(wwwAuth?.includes(`payTo="${serverAddress}"`), 'payTo = server address in challenge');
   assert(wwwAuth?.includes(`poolAddress="${poolAddr}"`), 'poolAddress in challenge');
   console.log();
@@ -475,8 +475,8 @@ async function run() {
 
   const payBody = await payRes.json();
   assert(payRes.status === 200, `server accepts real ZK proof → 200 (got ${payRes.status}: ${JSON.stringify(payBody).slice(0,100)})`);
-  assert(payBody.wraith?.paid === true, 'wraith.paid = true in response');
-  assert(payBody.wraith?.nullifierHash === nullHash.toString(), `wraith.nullifierHash matches proof`);
+  assert(payBody.cipherPol?.paid === true, 'cipherPol.paid = true in response');
+  assert(payBody.cipherPol?.nullifierHash === nullHash.toString(), `cipherPol.nullifierHash matches proof`);
   console.log();
 
   // ─── Phase 7: Privacy invariants ─────────────────────────────────────────────

@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>D2 — Surgical Minimalism · Wraith Protocol</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Inter:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#050508;--purple:#7c3aed;--purple-bright:#8b5cf6;
+  --text:#f1f5f9;--text-2:#94a3b8;--text-3:#475569;
+  --border:#1a1a2e;--border-bright:#252540;
+  --mono:'JetBrains Mono','SF Mono',monospace;
+  --sans:'Inter',system-ui,sans-serif;--rs:4px;
+}
+html,body{height:100%}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);overflow:hidden}
+nav{position:fixed;top:0;left:0;right:0;z-index:100;height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:rgba(5,5,8,0.85);backdrop-filter:blur(20px);border-bottom:1px solid var(--border)}
+.nav-logo{font-size:15px;font-weight:700;letter-spacing:.04em;text-decoration:none;color:var(--text);display:flex;align-items:center;gap:7px}
+.d{color:var(--purple)}
+.nav-links{display:flex;list-style:none}
+.nav-links a{font-size:13px;font-weight:500;color:var(--text-2);text-decoration:none;padding:6px 14px;transition:color .15s}
+.nav-links a:hover{color:var(--text)}
+.hero{position:relative;height:100vh;overflow:hidden;display:flex;align-items:center}
+#hero-canvas{position:absolute;inset:0;width:100%;height:100%}
+.hero-content{position:relative;z-index:2;padding:0 52px;max-width:580px;margin-top:56px}
+.hero-label{font-size:11px;font-weight:600;letter-spacing:.16em;color:var(--text-3);text-transform:uppercase;margin-bottom:20px;display:flex;align-items:center;gap:8px}
+.hero-headline{font-size:clamp(34px,5.2vw,62px);font-weight:700;line-height:1.05;letter-spacing:-.03em;margin-bottom:18px}
+.hero-sub{font-size:17px;color:var(--text-2);line-height:1.65;margin-bottom:28px;max-width:460px}
+.hero-sub strong{color:var(--text);font-weight:600}
+.hero-stack{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:32px}
+.hero-tag{font-family:var(--mono);font-size:11px;font-weight:500;color:var(--text-3);background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:var(--rs);padding:3px 9px;letter-spacing:.04em}
+.hero-ctas{display:flex;gap:12px}
+.btn-primary{font-size:14px;font-weight:600;color:#fff;background:var(--purple);border:1px solid var(--purple-bright);border-radius:var(--rs);padding:13px 26px;text-decoration:none;display:inline-flex;align-items:center;gap:7px;transition:background .15s}
+.btn-primary:hover{background:var(--purple-bright)}
+.btn-secondary{font-size:14px;font-weight:600;color:var(--text-2);background:transparent;border:1px solid var(--border-bright);border-radius:var(--rs);padding:13px 26px;text-decoration:none;display:inline-flex;align-items:center;gap:7px;transition:color .15s,border-color .15s}
+.btn-secondary:hover{color:var(--text);border-color:var(--text-3)}
+.badge{position:fixed;bottom:24px;right:24px;font-family:var(--mono);font-size:11px;color:var(--text-3);background:rgba(5,5,8,.92);border:1px solid var(--border-bright);border-radius:var(--rs);padding:6px 12px;z-index:200;letter-spacing:.04em}
+</style>
+</head>
+<body>
+<nav>
+  <a class="nav-logo" href="#"><span class="d">◈</span> WRAITH PROTOCOL</a>
+  <ul class="nav-links">
+    <li><a href="#">Protocol</a></li>
+    <li><a href="#">Docs</a></li>
+    <li><a href="#">GitHub ↗</a></li>
+  </ul>
+</nav>
+<section class="hero">
+  <canvas id="hero-canvas"></canvas>
+  <div class="hero-content">
+    <div class="hero-label"><span class="d">◈</span> WRAITH PROTOCOL</div>
+    <h1 class="hero-headline">Cryptographic guarantee.<br>Not a promise.</h1>
+    <p class="hero-sub">Private payments for AI agents. <strong>The deposit is unlinked from the payment</strong> — by Groth16 zero-knowledge proof, not policy.</p>
+    <div class="hero-stack">
+      <span class="hero-tag">Groth16</span>
+      <span class="hero-tag">BN254</span>
+      <span class="hero-tag">Poseidon2</span>
+      <span class="hero-tag">x402</span>
+      <span class="hero-tag">Starknet</span>
+    </div>
+    <div class="hero-ctas">
+      <a href="#" class="btn-primary">Read the Protocol ↓</a>
+      <a href="#" class="btn-secondary">GitHub ↗</a>
+    </div>
+  </div>
+</section>
+<div class="badge">D2 — Surgical Minimalism</div>
+<script>
+(function() {
+  const canvas = document.getElementById('hero-canvas');
+  const ctx = canvas.getContext('2d');
+  let w = 0, h = 0;
+
+  function resize() {
+    w = canvas.width  = canvas.offsetWidth  || window.innerWidth  || 1440;
+    h = canvas.height = canvas.offsetHeight || window.innerHeight || 900;
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  // Transaction enters from left → void → new transaction exits right.
+  // The link is severed. That's Wraith.
+  // Line sits at ~68% vertical, spanning full width, behind hero content.
+
+  const ENTER = 90, PAUSE = 25, EXIT = 90, WAIT = 100;
+  const P = { WAIT:0, ENTER:1, PAUSE:2, EXIT:3 };
+  let phase = P.WAIT, pf = 0, t = 0;
+
+  function ease(x) {
+    return x < 0.5 ? 2*x*x : 1 - Math.pow(-2*x+2,2)/2;
+  }
+
+  function draw() {
+    t++; pf++;
+    if (w === 0) { requestAnimationFrame(draw); return; }
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = '#050508'; ctx.fillRect(0, 0, w, h);
+
+    const lineY  = h * 0.67;
+    const voidX  = w * 0.60; // void center — right half, clear of text
+    const lLeft  = w * 0.28;
+    const lRight = w * 0.96;
+
+    // Full horizontal guide line — barely visible
+    ctx.beginPath();
+    ctx.strokeStyle = 'rgba(255,255,255,0.055)';
+    ctx.lineWidth = 0.5;
+    ctx.moveTo(lLeft, lineY);
+    ctx.lineTo(lRight, lineY);
+    ctx.stroke();
+
+    // Vertical void marker — a single faint tick
+    ctx.beginPath();
+    ctx.strokeStyle = 'rgba(124,58,237,0.18)';
+    ctx.lineWidth = 0.5;
+    ctx.moveTo(voidX, lineY - 6); ctx.lineTo(voidX, lineY + 6); ctx.stroke();
+
+    // "ZK" label at void
+    ctx.font = '9px JetBrains Mono, monospace';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(124,58,237,0.22)';
+    ctx.fillText('zk', voidX, lineY - 12);
+
+    // State transitions
+    if (phase === P.WAIT && pf > WAIT)        { phase = P.ENTER; pf = 0; }
+    else if (phase === P.ENTER && pf > ENTER) { phase = P.PAUSE; pf = 0; }
+    else if (phase === P.PAUSE && pf > PAUSE) { phase = P.EXIT;  pf = 0; }
+    else if (phase === P.EXIT  && pf > EXIT)  { phase = P.WAIT;  pf = 0; }
+
+    // Entering dot — white, travels left → void
+    if (phase === P.ENTER || phase === P.PAUSE) {
+      const prog = phase === P.PAUSE ? 1 : pf / ENTER;
+      const e = ease(prog);
+      const x = lLeft + (voidX - lLeft) * e;
+      const fadeOut = prog > 0.85 ? (1 - prog) / 0.15 : 1;
+      const a = 0.78 * fadeOut;
+
+      // Trail
+      for (let i = 5; i >= 1; i--) {
+        const tp = Math.max(0, prog - i * 0.03);
+        const tx = lLeft + (voidX - lLeft) * ease(tp);
+        ctx.beginPath(); ctx.arc(tx, lineY, 2.0 * (1 - i/6), 0, Math.PI*2);
+        ctx.fillStyle = `rgba(200,200,215,${a * 0.25 * (1 - i/6)})`; ctx.fill();
+      }
+      ctx.beginPath(); ctx.arc(x, lineY, 2.5, 0, Math.PI*2);
+      ctx.fillStyle = `rgba(210,210,230,${a})`; ctx.fill();
+    }
+
+    // Exiting dot — purple (unlinked), travels void → right
+    if (phase === P.EXIT) {
+      const prog = pf / EXIT;
+      const e = ease(prog);
+      const x = voidX + (lRight - voidX) * e;
+      const fadeIn = prog < 0.15 ? prog / 0.15 : 1;
+      const a = 0.72 * fadeIn;
+
+      for (let i = 5; i >= 1; i--) {
+        const tp = Math.max(0, prog - i * 0.03);
+        const tx = voidX + (lRight - voidX) * ease(tp);
+        ctx.beginPath(); ctx.arc(tx, lineY, 2.0 * (1 - i/6), 0, Math.PI*2);
+        ctx.fillStyle = `rgba(139,92,246,${a * 0.25 * (1 - i/6)})`; ctx.fill();
+      }
+      ctx.beginPath(); ctx.arc(x, lineY, 2.5, 0, Math.PI*2);
+      ctx.fillStyle = `rgba(160,120,255,${a})`; ctx.fill();
+    }
+
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+</script>
+</body>
+</html>

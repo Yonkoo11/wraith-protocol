@@ -22,7 +22,7 @@
  * For high-value APIs: use RedisNullifierSet.
  */
 
-/** Shared interface. Pass either implementation to wraithPaywall(). */
+/** Shared interface. Pass either implementation to cipherPolPaywall(). */
 export interface INullifierSet {
   has(nullifierHash: string): boolean | Promise<boolean>;
   add(nullifierHash: string): void | Promise<void>;
@@ -59,7 +59,7 @@ export class NullifierSet implements INullifierSet {
  * ```ts
  * import { createClient } from 'redis';
  * const redis = await createClient({ url: process.env.REDIS_URL }).connect();
- * const nullifiers = new RedisNullifierSet(redis, { key: 'wraith:nullifiers' });
+ * const nullifiers = new RedisNullifierSet(redis, { key: 'cipher-pol:nullifiers' });
  * ```
  *
  * The key holds a Redis Set. No TTL by default — nullifiers must persist at
@@ -74,7 +74,7 @@ export class RedisNullifierSet implements INullifierSet {
     opts: { key?: string } = {}
   ) {
     this.client = client;
-    this.key = opts.key ?? 'wraith:nullifiers';
+    this.key = opts.key ?? 'cipher-pol:nullifiers';
   }
 
   async has(nullifierHash: string): Promise<boolean> {

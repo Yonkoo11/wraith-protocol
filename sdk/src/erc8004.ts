@@ -1,8 +1,8 @@
 /**
- * ERC-8004 (Trustless Agents) integration for Wraith Protocol
+ * ERC-8004 (Trustless Agents) integration for Cipher Pol
  *
  * EIP-8004 gives AI agents a verifiable on-chain identity, reputation, and
- * a mechanism for independent task validation. Wraith integrates ERC-8004 to:
+ * a mechanism for independent task validation. Cipher Pol integrates ERC-8004 to:
  *   1. Identify agents making x402 payments (x402Support: true)
  *   2. Generate payment receipts after successful API calls
  *   3. Enable reputation building across the agent ecosystem
@@ -12,7 +12,7 @@
  *
  * The agent registration file follows the EIP-8004 schema exactly.
  * Notably, `x402Support: true` is a first-class field in the spec —
- * Wraith agents are the canonical implementation of this feature.
+ * Cipher Pol agents are the canonical implementation of this feature.
  */
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -23,13 +23,13 @@ export interface AgentManifest {
   description: string;
   image?: string;
   services: ServiceEntry[];
-  /** Always true for Wraith agents — x402 is our payment mechanism */
+  /** Always true for CipherPol agents — x402 is our payment mechanism */
   x402Support: true;
   active: boolean;
   supportedTrust: Array<'reputation' | 'crypto-economic' | 'tee-attestation'>;
   registrations?: RegistrationEntry[];
-  /** Wraith-specific extension fields */
-  wraith: {
+  /** CipherPol-specific extension fields */
+  cipherPol: {
     sdkVersion: string;
     adapter: 'privacy-pools' | 'strk20';
     starknetAddress?: string;
@@ -52,7 +52,7 @@ export interface RegistrationEntry {
 /**
  * ERC-8004 payment receipt — the off-chain feedback file format.
  *
- * After a Wraith x402 payment, the agent generates this receipt.
+ * After a Cipher Pol x402 payment, the agent generates this receipt.
  * It can be submitted to the ERC-8004 Reputation Registry as feedback,
  * proving the agent autonomously paid for a service via ZK-private Starknet tx.
  */
@@ -82,7 +82,7 @@ export interface AgentReceipt {
   token: string;
   timestamp: number;
   /** Schema identifier for tooling */
-  schema: 'erc8004-wraith-receipt-v1';
+  schema: 'erc8004-cipher-pol-receipt-v1';
 }
 
 export interface ERC8004Config {
@@ -130,13 +130,13 @@ export function createAgentManifest(
       {
         name: 'x402',
         endpoint: config.starknetAddress ?? 'starknet',
-        version: 'wraith-v1',
+        version: 'cipher-pol-v1',
       },
     ],
     x402Support: true,
     active: true,
     supportedTrust: ['crypto-economic'],
-    wraith: {
+    cipherPol: {
       sdkVersion: '0.1.0',
       adapter,
       starknetAddress: config.starknetAddress,
@@ -169,7 +169,7 @@ export function manifestToDataURI(manifest: AgentManifest): string {
 }
 
 /**
- * Generate an ERC-8004 payment receipt after a successful Wraith x402 payment.
+ * Generate an ERC-8004 payment receipt after a successful Cipher Pol x402 payment.
  *
  * This receipt proves the agent autonomously paid for a service via a
  * ZK-private Starknet transaction. It follows the ERC-8004 off-chain
@@ -211,7 +211,7 @@ export function generatePaymentReceipt(
     amount: amount.toString(),
     token,
     timestamp: Date.now(),
-    schema: 'erc8004-wraith-receipt-v1',
+    schema: 'erc8004-cipher-pol-receipt-v1',
   };
 }
 
@@ -223,7 +223,7 @@ export function validateReceipt(receipt: unknown): receipt is AgentReceipt {
   if (typeof receipt !== 'object' || receipt === null) return false;
   const r = receipt as Record<string, unknown>;
   return (
-    r.schema === 'erc8004-wraith-receipt-v1' &&
+    r.schema === 'erc8004-cipher-pol-receipt-v1' &&
     typeof r.service === 'string' &&
     typeof r.paymentProof === 'object' &&
     typeof (r.paymentProof as Record<string, unknown>).txHash === 'string' &&

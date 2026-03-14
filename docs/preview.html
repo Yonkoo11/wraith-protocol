@@ -1,0 +1,1975 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wraith Protocol — Private Payments for AI Agents</title>
+<meta name="description" content="ZK-native private payments for AI agents on Starknet. Groth16 proofs unlink deposit from payment. x402 protocol. Honest limits documented.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:           #050508;
+  --surface:      #0a0a10;
+  --surface-2:    #111118;
+  --border:       #1e1e2e;
+  --border-bright:#2d2d42;
+  --purple:       #7c3aed;
+  --purple-bright:#8b5cf6;
+  --purple-glow:  rgba(124,58,237,0.15);
+  --green:        #10b981;
+  --green-bright: #34d399;
+  --cyan:         #06b6d4;
+  --amber:        #f59e0b;
+  --red:          #ef4444;
+  --text:         #f1f5f9;
+  --text-2:       #94a3b8;
+  --text-3:       #475569;
+  --mono: 'JetBrains Mono', 'SF Mono', 'Menlo', monospace;
+  --sans: 'Inter', system-ui, sans-serif;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  line-height: 1.6;
+  overflow-x: hidden;
+}
+
+/* ═══════════════════════════════════════════════════
+   SCROLLBAR
+═══════════════════════════════════════════════════ */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 3px; }
+
+/* ═══════════════════════════════════════════════════
+   NAV
+═══════════════════════════════════════════════════ */
+nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  background: rgba(5,5,8,0.82);
+  backdrop-filter: blur(16px) saturate(1.4);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  border-bottom: 1px solid var(--border);
+}
+
+.nav-logo {
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-decoration: none;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.nav-logo .diamond { color: var(--purple); }
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  list-style: none;
+}
+
+.nav-links a {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-2);
+  text-decoration: none;
+  padding: 6px 14px;
+  letter-spacing: 0.05em;
+  transition: color 0.15s;
+}
+.nav-links a:hover { color: var(--text); }
+
+.nav-chip {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--amber);
+  background: rgba(245,158,11,0.1);
+  border: 1px solid rgba(245,158,11,0.25);
+  border-radius: 4px;
+  padding: 3px 10px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.nav-chip .hex { font-size: 10px; }
+
+/* ═══════════════════════════════════════════════════
+   HERO
+═══════════════════════════════════════════════════ */
+.hero {
+  position: relative;
+  height: 100vh;
+  min-height: 600px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+}
+
+#hero-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.hero-overlay {
+  position: relative;
+  z-index: 2;
+  padding: 0 48px;
+  max-width: 520px;
+  margin-top: 56px;
+}
+
+.hero-title {
+  font-family: var(--mono);
+  font-size: clamp(36px, 6vw, 72px);
+  font-weight: 700;
+  line-height: 0.95;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.hero-title-2 {
+  font-family: var(--mono);
+  font-size: clamp(36px, 6vw, 72px);
+  font-weight: 700;
+  line-height: 0.95;
+  letter-spacing: -0.02em;
+  color: var(--purple);
+  margin-bottom: 24px;
+}
+
+.hero-rule {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-3);
+  letter-spacing: 0.02em;
+  margin-bottom: 16px;
+}
+
+.hero-tagline {
+  font-size: 15px;
+  color: var(--text-2);
+  line-height: 1.7;
+  margin-bottom: 4px;
+}
+.hero-tagline strong {
+  color: var(--text);
+  font-weight: 600;
+}
+.hero-guarantee {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--green);
+  margin-bottom: 24px;
+  letter-spacing: 0.03em;
+}
+
+.hero-stack {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-3);
+  letter-spacing: 0.08em;
+  margin-bottom: 32px;
+}
+.hero-stack span { color: var(--purple-bright); }
+
+.hero-ctas {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.btn-primary {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--text);
+  background: var(--purple);
+  border: 1px solid var(--purple-bright);
+  border-radius: 4px;
+  padding: 10px 20px;
+  text-decoration: none;
+  transition: background 0.15s, transform 0.1s;
+  display: inline-block;
+}
+.btn-primary:hover { background: var(--purple-bright); transform: translateY(-1px); }
+
+.btn-secondary {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--text-2);
+  background: transparent;
+  border: 1px solid var(--border-bright);
+  border-radius: 4px;
+  padding: 10px 20px;
+  text-decoration: none;
+  transition: color 0.15s, border-color 0.15s, transform 0.1s;
+  display: inline-block;
+}
+.btn-secondary:hover { color: var(--text); border-color: var(--text-3); transform: translateY(-1px); }
+
+/* ═══════════════════════════════════════════════════
+   SECTIONS
+═══════════════════════════════════════════════════ */
+section {
+  padding: 96px 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.section-full {
+  max-width: 100%;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.section-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.section-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  color: var(--purple);
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+
+.section-title {
+  font-family: var(--mono);
+  font-size: clamp(22px, 3vw, 36px);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text);
+  margin-bottom: 8px;
+  line-height: 1.2;
+}
+
+.section-sub {
+  font-size: 15px;
+  color: var(--text-2);
+  max-width: 600px;
+  margin-bottom: 48px;
+  line-height: 1.65;
+}
+
+/* Fade-in scroll animation */
+.fade-up {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.55s ease, transform 0.55s ease;
+}
+.fade-up.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ═══════════════════════════════════════════════════
+   PRIVACY CONTRACT
+═══════════════════════════════════════════════════ */
+#contract {
+  border-top: 1px solid var(--border);
+}
+
+.contract-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 24px;
+}
+
+@media (max-width: 768px) {
+  .contract-grid { grid-template-columns: 1fr; }
+}
+
+.contract-col {
+  background: var(--surface-2);
+}
+
+.contract-col-header {
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.contract-col.hidden-col .contract-col-header {
+  background: rgba(16,185,129,0.04);
+}
+
+.contract-col.visible-col .contract-col-header {
+  background: rgba(30,30,46,0.4);
+}
+
+.contract-col-title {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.hidden-col .contract-col-title { color: var(--green); }
+.visible-col .contract-col-title { color: var(--text-2); }
+
+.contract-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.contract-row {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.15s;
+  position: relative;
+}
+.contract-row:last-child { border-bottom: none; }
+.contract-row:hover { background: rgba(255,255,255,0.025); }
+
+.contract-row-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.contract-row-label {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text);
+  flex: 1;
+}
+
+.contract-row-reason {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-3);
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  display: none;
+  line-height: 1.6;
+  font-style: italic;
+}
+.contract-row.expanded .contract-row-reason { display: block; }
+
+.expand-indicator {
+  font-size: 10px;
+  color: var(--text-3);
+  flex-shrink: 0;
+  transition: transform 0.2s;
+  margin-top: 2px;
+}
+.contract-row.expanded .expand-indicator { transform: rotate(90deg); }
+
+.warning-bar {
+  background: rgba(245,158,11,0.08);
+  border: 1px solid rgba(245,158,11,0.3);
+  border-radius: 6px;
+  padding: 14px 18px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--amber);
+  line-height: 1.6;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.warning-bar .warn-icon { flex-shrink: 0; font-size: 14px; }
+
+/* ═══════════════════════════════════════════════════
+   MECHANISM
+═══════════════════════════════════════════════════ */
+#mechanism {
+  border-top: 1px solid var(--border);
+}
+
+.mechanism-flow {
+  display: grid;
+  grid-template-columns: 1fr 28px 1fr 28px 1fr 28px 1fr;
+  gap: 0;
+  align-items: start;
+}
+
+@media (max-width: 1024px) {
+  .mechanism-flow {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .mechanism-arrow { display: none; }
+}
+
+.mechanism-arrow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 48px;
+  color: var(--text-3);
+  font-size: 18px;
+}
+
+.mechanism-card {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  transition: border-color 0.2s;
+}
+.mechanism-card:hover { border-color: var(--border-bright); }
+
+.mechanism-card-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.mechanism-step-num {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--text-3);
+}
+
+.mechanism-step-title {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: 0.05em;
+}
+
+.mechanism-card pre {
+  padding: 14px 16px;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.7;
+  overflow-x: auto;
+  background: var(--surface);
+  min-height: 110px;
+}
+
+.mechanism-card-footer {
+  padding: 10px 16px;
+  border-top: 1px solid var(--border);
+}
+
+.mechanism-tag {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  border-radius: 3px;
+  padding: 3px 8px;
+  display: inline-block;
+}
+.tag-visible { color: var(--amber); background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.2); }
+.tag-hidden  { color: var(--green); background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.2); }
+.tag-neutral { color: var(--cyan);  background: rgba(6,182,212,0.1);  border: 1px solid rgba(6,182,212,0.2); }
+.tag-severed { color: var(--purple-bright); background: rgba(139,92,246,0.1); border: 1px solid rgba(139,92,246,0.25); }
+
+/* ═══════════════════════════════════════════════════
+   ANONYMITY SET
+═══════════════════════════════════════════════════ */
+#anonymity {
+  border-top: 1px solid var(--border);
+}
+
+.anonymity-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 40px;
+  align-items: center;
+}
+
+@media (max-width: 768px) {
+  .anonymity-layout { grid-template-columns: 1fr; }
+}
+
+#anon-canvas {
+  width: 100%;
+  max-width: 440px;
+  aspect-ratio: 1;
+  display: block;
+  margin: 0 auto;
+}
+
+.anon-caption {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-3);
+  text-align: center;
+  margin-top: 12px;
+  line-height: 1.5;
+}
+
+.risk-scale {
+  margin-top: 32px;
+}
+
+.risk-scale-title {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-3);
+  letter-spacing: 0.1em;
+  margin-bottom: 10px;
+  text-transform: uppercase;
+}
+
+.risk-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(to right, var(--red), var(--amber), var(--green), rgba(16,185,129,0.4));
+  margin-bottom: 8px;
+}
+
+.risk-labels {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
+  gap: 0;
+}
+
+.risk-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 1.4;
+}
+.risk-label .range { color: var(--text-3); display: block; }
+.risk-label .rating { font-weight: 700; display: block; }
+.risk-label:nth-child(1) .rating { color: var(--red); }
+.risk-label:nth-child(2) .rating { color: var(--amber); }
+.risk-label:nth-child(3) .rating { color: var(--green); }
+.risk-label:nth-child(4) .rating { color: rgba(16,185,129,0.6); }
+
+.risk-note {
+  margin-top: 20px;
+  font-size: 13px;
+  color: var(--text-2);
+  line-height: 1.65;
+}
+.risk-note strong { color: var(--text); font-weight: 600; }
+
+/* ═══════════════════════════════════════════════════
+   CODE BLOCKS & SYNTAX
+═══════════════════════════════════════════════════ */
+.code-block-wrap {
+  position: relative;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.code-block-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-3);
+  letter-spacing: 0.05em;
+}
+
+.copy-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--text-3);
+  font-family: var(--mono);
+  font-size: 10px;
+  padding: 3px 8px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  letter-spacing: 0.05em;
+}
+.copy-btn:hover { color: var(--text); border-color: var(--border-bright); }
+.copy-btn.copied { color: var(--green); border-color: var(--green); }
+
+pre.code {
+  padding: 20px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.75;
+  overflow-x: auto;
+  background: var(--surface);
+  tab-size: 2;
+}
+
+.kw  { color: var(--purple); }
+.fn  { color: var(--cyan); }
+.str { color: var(--green); }
+.cmt { color: var(--text-3); font-style: italic; }
+.num { color: var(--amber); }
+.type { color: var(--purple-bright); }
+.op  { color: var(--text-3); }
+.prop { color: var(--text-2); }
+
+/* ═══════════════════════════════════════════════════
+   INTEGRATE / TABS
+═══════════════════════════════════════════════════ */
+#integrate {
+  border-top: 1px solid var(--border);
+}
+
+.tabs {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.tab-btn {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--text-3);
+  background: none;
+  border: none;
+  padding: 10px 20px;
+  cursor: pointer;
+  position: relative;
+  transition: color 0.15s;
+}
+.tab-btn::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--purple);
+  transform: scaleX(0);
+  transition: transform 0.2s;
+}
+.tab-btn.active { color: var(--text); }
+.tab-btn.active::after { transform: scaleX(1); }
+.tab-btn:hover { color: var(--text-2); }
+
+.tab-panel { display: none; padding-top: 24px; }
+.tab-panel.active { display: block; }
+
+/* ═══════════════════════════════════════════════════
+   PROTOCOL SPECS TABLE
+═══════════════════════════════════════════════════ */
+#specs {
+  border-top: 1px solid var(--border);
+}
+
+.specs-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--mono);
+  font-size: 13px;
+}
+
+.specs-table tr {
+  border-bottom: 1px solid var(--border);
+  transition: background 0.12s;
+}
+.specs-table tr:last-child { border-bottom: none; }
+.specs-table tr:hover { background: rgba(255,255,255,0.02); }
+
+.specs-table td {
+  padding: 11px 16px;
+  vertical-align: top;
+}
+
+.specs-table td:first-child {
+  color: var(--text-3);
+  width: 38%;
+  font-weight: 500;
+}
+
+.specs-table td:last-child { color: var(--text); }
+
+.spec-val { color: var(--text); }
+.spec-warn { color: var(--amber); font-weight: 600; }
+.spec-bad  { color: var(--red);   font-weight: 600; }
+.spec-good { color: var(--green); font-weight: 600; }
+
+.specs-wrap {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--surface-2);
+}
+
+/* ═══════════════════════════════════════════════════
+   HONEST LIMITS
+═══════════════════════════════════════════════════ */
+#limits {
+  border-top: 1px solid var(--border);
+}
+
+.limits-title { color: var(--amber); }
+
+.limits-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+@media (max-width: 768px) {
+  .limits-grid { grid-template-columns: 1fr; }
+}
+
+.limit-card {
+  background: rgba(245,158,11,0.04);
+  border: 1px solid rgba(245,158,11,0.25);
+  border-radius: 8px;
+  padding: 20px 22px;
+  transition: border-color 0.2s;
+}
+.limit-card:hover { border-color: rgba(245,158,11,0.5); }
+
+.limit-card-num {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  color: var(--amber);
+  opacity: 0.6;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+
+.limit-card-title {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--amber);
+  margin-bottom: 10px;
+  letter-spacing: 0.03em;
+}
+
+.limit-card-body {
+  font-size: 13px;
+  color: var(--text-2);
+  line-height: 1.65;
+}
+.limit-card-body code {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-3);
+  background: rgba(255,255,255,0.05);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+.verified-block {
+  background: rgba(16,185,129,0.05);
+  border: 1px solid rgba(16,185,129,0.2);
+  border-radius: 6px;
+  padding: 16px 20px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--green);
+  line-height: 1.7;
+}
+.verified-block strong { color: var(--green-bright); }
+
+/* ═══════════════════════════════════════════════════
+   ROADMAP
+═══════════════════════════════════════════════════ */
+#roadmap {
+  border-top: 1px solid var(--border);
+}
+
+.roadmap-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+@media (max-width: 768px) {
+  .roadmap-grid { grid-template-columns: 1fr; }
+}
+
+.roadmap-card {
+  border-radius: 8px;
+  padding: 24px;
+  border: 1px solid;
+}
+
+.roadmap-card.v1 {
+  background: rgba(16,185,129,0.04);
+  border-color: rgba(16,185,129,0.25);
+}
+
+.roadmap-card.v2 {
+  background: rgba(124,58,237,0.04);
+  border-color: rgba(124,58,237,0.2);
+  opacity: 0.75;
+}
+
+.roadmap-card-title {
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  margin-bottom: 16px;
+}
+.v1 .roadmap-card-title { color: var(--green); }
+.v2 .roadmap-card-title { color: var(--purple-bright); }
+
+.roadmap-list {
+  list-style: none;
+  margin-bottom: 16px;
+}
+
+.roadmap-list li {
+  font-size: 13px;
+  color: var(--text-2);
+  padding: 5px 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.roadmap-list li:last-child { border-bottom: none; }
+
+.roadmap-list li::before {
+  font-family: var(--mono);
+  font-size: 10px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.v1 .roadmap-list li::before { content: '✓'; color: var(--green); }
+.v2 .roadmap-list li::before { content: '○'; color: var(--text-3); }
+
+.roadmap-status {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 4px;
+}
+.v1 .roadmap-status { color: var(--green); background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.2); }
+.v2 .roadmap-status { color: var(--purple-bright); background: rgba(139,92,246,0.1); border: 1px solid rgba(139,92,246,0.2); }
+
+/* ═══════════════════════════════════════════════════
+   FOOTER
+═══════════════════════════════════════════════════ */
+footer {
+  border-top: 1px solid var(--border);
+  padding: 32px 24px;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  align-items: center;
+  gap: 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+@media (max-width: 768px) {
+  footer {
+    grid-template-columns: 1fr;
+    text-align: center;
+  }
+}
+
+.footer-brand {
+  font-family: var(--mono);
+  font-size: 13px;
+}
+
+.footer-brand-name {
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+.footer-brand-name .diamond { color: var(--purple); }
+
+.footer-brand-sub {
+  font-size: 11px;
+  color: var(--text-3);
+  letter-spacing: 0.02em;
+}
+
+.footer-links {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  list-style: none;
+}
+
+.footer-links a {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-3);
+  text-decoration: none;
+  letter-spacing: 0.05em;
+  transition: color 0.15s;
+}
+.footer-links a:hover { color: var(--cyan); }
+
+.footer-right {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-3);
+  text-align: right;
+  letter-spacing: 0.05em;
+  line-height: 1.8;
+}
+
+/* ═══════════════════════════════════════════════════
+   RESPONSIVE HELPERS
+═══════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  nav { padding: 0 16px; }
+  .nav-links { display: none; }
+  .hero-overlay { padding: 0 24px; max-width: 100%; }
+  section { padding: 64px 20px; }
+  .footer-right { text-align: center; }
+}
+
+@media (max-width: 480px) {
+  .hero-overlay { padding: 0 16px; }
+  .contract-col-header { padding: 12px 14px 10px; }
+  .contract-row { padding: 12px 14px; }
+  pre.code { font-size: 11px; padding: 16px; }
+}
+
+/* Divider line */
+.section-divider {
+  width: 40px;
+  height: 2px;
+  background: var(--purple);
+  margin-bottom: 24px;
+  border-radius: 1px;
+}
+</style>
+</head>
+<body>
+
+<!-- ═══ NAV ═══ -->
+<nav>
+  <a href="#" class="nav-logo"><span class="diamond">◈</span> WRAITH</a>
+  <ul class="nav-links">
+    <li><a href="#contract">Protocol</a></li>
+    <li><a href="#integrate">Docs</a></li>
+    <li><a href="https://github.com/wraith-protocol" target="_blank" rel="noopener">GitHub</a></li>
+  </ul>
+  <div class="nav-chip"><span class="hex">⬡</span> DEVNET</div>
+</nav>
+
+<!-- ═══ HERO ═══ -->
+<section class="hero">
+  <canvas id="hero-canvas"></canvas>
+  <div class="hero-overlay">
+    <div class="hero-title">WRAITH</div>
+    <div class="hero-title-2">PROTOCOL</div>
+    <div class="hero-rule">──────────────────────────────</div>
+    <p class="hero-tagline">Private payments for AI agents.<br><strong>The payer is unknown to the payee.</strong></p>
+    <p class="hero-guarantee">Cryptographic guarantee. Not a promise.</p>
+    <div class="hero-rule">──────────────────────────────</div>
+    <div class="hero-stack"><span>Groth16</span> · <span>BN254</span> · <span>Poseidon2</span> · <span>x402</span> · <span>Starknet</span></div>
+    <div class="hero-ctas">
+      <a href="#contract" class="btn-primary">READ THE PROTOCOL ↓</a>
+      <a href="https://github.com/wraith-protocol" target="_blank" rel="noopener" class="btn-secondary">GitHub ↗</a>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ PRIVACY CONTRACT ═══ -->
+<section id="contract" class="fade-up">
+  <div class="section-label">Section 01</div>
+  <div class="section-divider"></div>
+  <h2 class="section-title">THE PRIVACY CONTRACT</h2>
+  <p class="section-sub">Precise cryptographic claims. Not marketing promises.</p>
+
+  <div class="contract-grid">
+    <div class="contract-col hidden-col">
+      <div class="contract-col-header">
+        <span class="contract-icon">🔒</span>
+        <span class="contract-col-title">CRYPTOGRAPHICALLY HIDDEN</span>
+      </div>
+
+      <div class="contract-row" onclick="this.classList.toggle('expanded')">
+        <div class="contract-row-main">
+          <span class="contract-row-label">Link between deposit and withdrawal</span>
+          <span class="expand-indicator">›</span>
+        </div>
+        <div class="contract-row-reason">Merkle proof in ZK circuit never reveals the leaf index. The prover knows their path; the verifier only sees the root and nullifierHash.</div>
+      </div>
+
+      <div class="contract-row" onclick="this.classList.toggle('expanded')">
+        <div class="contract-row-main">
+          <span class="contract-row-label">Depositor's Starknet address</span>
+          <span class="expand-indicator">›</span>
+        </div>
+        <div class="contract-row-reason">Not in any public circuit input. msg.sender from the deposit transaction is never passed into the ZK proof's public inputs.</div>
+      </div>
+
+      <div class="contract-row" onclick="this.classList.toggle('expanded')">
+        <div class="contract-row-main">
+          <span class="contract-row-label">secret, nullifier values</span>
+          <span class="expand-indicator">›</span>
+        </div>
+        <div class="contract-row-reason">Private circuit inputs. They are never transmitted over the network, never stored server-side, never appear in garaga calldata.</div>
+      </div>
+
+      <div class="contract-row" onclick="this.classList.toggle('expanded')">
+        <div class="contract-row-main">
+          <span class="contract-row-label">Which deposit funded this payment</span>
+          <span class="expand-indicator">›</span>
+        </div>
+        <div class="contract-row-reason">Zero-knowledge property of Groth16. The proof attests "I know a valid preimage for some leaf in this Merkle tree" without revealing which leaf.</div>
+      </div>
+    </div>
+
+    <div class="contract-col visible-col">
+      <div class="contract-col-header">
+        <span class="contract-icon">👁</span>
+        <span class="contract-col-title">PUBLICLY VISIBLE</span>
+      </div>
+
+      <div class="contract-row" onclick="this.classList.toggle('expanded')">
+        <div class="contract-row-main">
+          <span class="contract-row-label">Depositor address at deposit time</span>
+          <span class="expand-indicator">›</span>
+        </div>
+        <div class="contract-row-reason">Emitted in the on-chain Deposit event. Anyone watching the chain sees your address deposited into the pool. Wraith is link-private, not identity-private.</div>
+      </div>
+
+      <div class="contract-row" onclick="this.classList.toggle('expanded')">
+        <div class="contract-row-main">
+          <span class="contract-row-label">Deposit amount</span>
+          <span class="expand-indicator">›</span>
+        </div>
+        <div class="contract-row-reason">On-chain, visible to all. Included in the commitment hash but the amount itself is public. Fixed-denomination pools (like Tornado Cash) reduce amount correlation.</div>
+      </div>
+
+      <div class="contract-row" onclick="this.classList.toggle('expanded')">
+        <div class="contract-row-main">
+          <span class="contract-row-label">Withdrawal recipient address</span>
+          <span class="expand-indicator">›</span>
+        </div>
+        <div class="contract-row-reason">pool.withdraw() recipient is a public input. The server's API wallet address receiving payment is visible on-chain. Only the link to the depositor is hidden.</div>
+      </div>
+
+      <div class="contract-row" onclick="this.classList.toggle('expanded')">
+        <div class="contract-row-main">
+          <span class="contract-row-label">nullifierHash — required for double-spend prevention</span>
+          <span class="expand-indicator">›</span>
+        </div>
+        <div class="contract-row-reason">Stored on-chain after each withdrawal. Required to prevent the same deposit being spent twice. The nullifierHash is H(nullifier) and does not reveal the original nullifier or depositor.</div>
+      </div>
+
+      <div class="contract-row" onclick="this.classList.toggle('expanded')">
+        <div class="contract-row-main">
+          <span class="contract-row-label">Payment timestamp (HTTP)</span>
+          <span class="expand-indicator">›</span>
+        </div>
+        <div class="contract-row-reason">Standard HTTP metadata. Timestamps are a known deanonymization vector. The WithdrawalQueue with flushIntervalMs=300000 batches withdrawals to break timing correlation.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="warning-bar">
+    <span class="warn-icon">⚠</span>
+    <span><strong>Server logging:</strong> X-Payment-Proof header is stripped before handlers. Any upstream proxy logging (nginx access_log, Cloudflare, AWS ALB) must also be audited — a logged X-Payment-Proof header defeats the ZK unlinking entirely.</span>
+  </div>
+</section>
+
+<!-- ═══ MECHANISM ═══ -->
+<section id="mechanism" class="fade-up">
+  <div class="section-label">Section 02</div>
+  <div class="section-divider"></div>
+  <h2 class="section-title">HOW ZK UNLINKING WORKS</h2>
+  <p class="section-sub">Four phases. Three are on-chain. One is yours alone.</p>
+
+  <div class="mechanism-flow">
+    <!-- Step 1 -->
+    <div class="mechanism-card">
+      <div class="mechanism-card-header">
+        <span class="mechanism-step-num">STEP 01</span>
+        <span class="mechanism-step-title">DEPOSIT</span>
+      </div>
+      <pre class="code"><span class="cmt">// public, on-chain</span>
+<span class="prop">commitment</span> <span class="op">=</span> <span class="fn">poseidon2</span>(
+  <span class="fn">poseidon2</span>(<span class="prop">secret</span>, <span class="prop">nullifier</span>),
+  <span class="prop">amount</span>
+)
+<span class="prop">pool</span>.<span class="fn">deposit</span>(
+  <span class="prop">commitment</span>,
+  <span class="prop">amount</span>
+)</pre>
+      <div class="mechanism-card-footer">
+        <span class="mechanism-tag tag-visible">depositor address: VISIBLE</span>
+      </div>
+    </div>
+
+    <div class="mechanism-arrow">→</div>
+
+    <!-- Step 2 -->
+    <div class="mechanism-card">
+      <div class="mechanism-card-header">
+        <span class="mechanism-step-num">STEP 02</span>
+        <span class="mechanism-step-title">WAIT</span>
+      </div>
+      <pre class="code"><span class="cmt">// Anonymity grows with every</span>
+<span class="cmt">// new deposit in the pool.</span>
+<span class="cmt">//</span>
+<span class="cmt">// pool.size = N</span>
+<span class="cmt">// Never withdraw at N = 1.</span>
+<span class="cmt">// Observer narrows candidates</span>
+<span class="cmt">// to 1 at N = 1.</span>
+<span class="cmt">//</span>
+<span class="cmt">// Recommended minimum: 50</span></pre>
+      <div class="mechanism-card-footer">
+        <span class="mechanism-tag tag-neutral">anonymity set: N deposits</span>
+      </div>
+    </div>
+
+    <div class="mechanism-arrow">→</div>
+
+    <!-- Step 3 -->
+    <div class="mechanism-card">
+      <div class="mechanism-card-header">
+        <span class="mechanism-step-num">STEP 03</span>
+        <span class="mechanism-step-title">PROVE</span>
+      </div>
+      <pre class="code"><span class="kw">const</span> <span class="prop">proof</span> <span class="op">=</span> <span class="kw">await</span> <span class="prop">agent</span>.<span class="fn">pay</span>(
+  <span class="prop">apiUrl</span>, <span class="prop">amount</span>
+)
+<span class="cmt">// 4–6s · client-side only</span>
+<span class="cmt">// private: secret, nullifier,</span>
+<span class="cmt">//          merkle path</span>
+<span class="cmt">// public:  root, nullifierHash,</span>
+<span class="cmt">//          recipient, amount</span></pre>
+      <div class="mechanism-card-footer">
+        <span class="mechanism-tag tag-hidden">depositor: HIDDEN</span>
+      </div>
+    </div>
+
+    <div class="mechanism-arrow">→</div>
+
+    <!-- Step 4 -->
+    <div class="mechanism-card">
+      <div class="mechanism-card-header">
+        <span class="mechanism-step-num">STEP 04</span>
+        <span class="mechanism-step-title">WITHDRAW</span>
+      </div>
+      <pre class="code"><span class="prop">pool</span>.<span class="fn">withdraw</span>(<span class="prop">garaga_calldata</span>)
+<span class="cmt">// 2918 felts</span>
+<span class="cmt">// garaga 0.15.3 verifier</span>
+<span class="cmt">// nullifier stored on-chain</span>
+<span class="cmt">// recipient: VISIBLE</span>
+<span class="cmt">// which deposit: UNKNOWN</span></pre>
+      <div class="mechanism-card-footer">
+        <span class="mechanism-tag tag-severed">link to deposit: SEVERED</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ ANONYMITY SET ═══ -->
+<section id="anonymity" class="fade-up">
+  <div class="section-label">Section 03</div>
+  <div class="section-divider"></div>
+  <h2 class="section-title">ANONYMITY SET</h2>
+  <p class="section-sub">The most important privacy parameter. Not a feature — a prerequisite.</p>
+
+  <div class="anonymity-layout">
+    <div>
+      <canvas id="anon-canvas" width="440" height="440"></canvas>
+      <p class="anon-caption">Which dot funded the withdrawal?<br>That's the guarantee.</p>
+    </div>
+
+    <div>
+      <div class="risk-scale">
+        <div class="risk-scale-title">Pool depth risk scale</div>
+        <div class="risk-bar"></div>
+        <div class="risk-labels">
+          <div class="risk-label">
+            <span class="range">1–9</span>
+            <span class="rating">HIGH RISK</span>
+          </div>
+          <div class="risk-label">
+            <span class="range">10–99</span>
+            <span class="rating">MODERATE</span>
+          </div>
+          <div class="risk-label">
+            <span class="range">100–999</span>
+            <span class="rating">LOW RISK</span>
+          </div>
+          <div class="risk-label">
+            <span class="range">1000+</span>
+            <span class="rating">MINIMAL</span>
+          </div>
+        </div>
+      </div>
+
+      <p class="risk-note" style="margin-top:24px;">
+        Wraith's privacy guarantee is only as strong as the number of other depositors in the pool. A chain observer sees all deposits. With 3 depositors, they narrow candidates to 3.
+      </p>
+      <p class="risk-note" style="margin-top:12px;">
+        <strong>Never withdraw immediately after depositing.</strong> The default <code style="font-family:var(--mono);font-size:11px;color:var(--text-3);background:rgba(255,255,255,0.05);padding:2px 5px;border-radius:3px;">flushIntervalMs=300000</code> (5 minutes) batches withdrawals to break timing correlation. Setting it to 0 creates a 1-to-1 timestamp link.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ INTEGRATE ═══ -->
+<section id="integrate" class="fade-up">
+  <div class="section-label">Section 04</div>
+  <div class="section-divider"></div>
+  <h2 class="section-title">BUILD WITH WRAITH</h2>
+  <p class="section-sub">SDK for agents and servers. Protocol transport documented below.</p>
+
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab(this,'tab-agent')">AGENT</button>
+    <button class="tab-btn" onclick="switchTab(this,'tab-server')">SERVER</button>
+    <button class="tab-btn" onclick="switchTab(this,'tab-protocol')">PROTOCOL</button>
+  </div>
+
+  <!-- AGENT TAB -->
+  <div id="tab-agent" class="tab-panel active">
+    <div class="code-block-wrap">
+      <div class="code-block-header">
+        <span>agent.ts</span>
+        <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+      </div>
+      <pre class="code" id="code-agent"><span class="kw">import</span> { <span class="type">CipherPolAgent</span> } <span class="kw">from</span> <span class="str">'cipher-pol-agent'</span>;
+<span class="kw">import</span> { <span class="type">Account</span>, <span class="type">RpcProvider</span> } <span class="kw">from</span> <span class="str">'starknet'</span>;
+
+<span class="kw">const</span> <span class="prop">provider</span> <span class="op">=</span> <span class="kw">new</span> <span class="type">RpcProvider</span>({ <span class="prop">nodeUrl</span>: <span class="prop">RPC_URL</span> });
+<span class="kw">const</span> <span class="prop">account</span>  <span class="op">=</span> <span class="kw">new</span> <span class="type">Account</span>(<span class="prop">provider</span>, <span class="prop">ADDRESS</span>, <span class="prop">PRIVATE_KEY</span>);
+
+<span class="kw">const</span> <span class="prop">agent</span> <span class="op">=</span> <span class="kw">new</span> <span class="type">CipherPolAgent</span>({
+  <span class="prop">adapter</span>:        <span class="str">'privacy-pools'</span>,
+  <span class="prop">poolAddress</span>:   <span class="prop">POOL_ADDRESS</span>,
+  <span class="prop">starknetRpcUrl</span>: <span class="prop">RPC_URL</span>,
+}, <span class="prop">account</span>);
+
+<span class="cmt">// Deposit once, pay many times</span>
+<span class="kw">await</span> <span class="prop">agent</span>.<span class="fn">deposit</span>(<span class="num">1_000_000n</span>); <span class="cmt">// 0.001 ETH</span>
+
+<span class="cmt">// Pay any x402-compatible API — no trace to your address</span>
+<span class="kw">const</span> <span class="prop">result</span> <span class="op">=</span> <span class="kw">await</span> <span class="prop">agent</span>.<span class="fn">pay</span>(
+  <span class="str">'https://api.example.com/v1/generate'</span>,
+  { <span class="prop">amount</span>: <span class="num">100n</span>, <span class="prop">token</span>: <span class="str">'ETH'</span> }
+);</pre>
+    </div>
+  </div>
+
+  <!-- SERVER TAB -->
+  <div id="tab-server" class="tab-panel">
+    <div class="code-block-wrap">
+      <div class="code-block-header">
+        <span>server.ts</span>
+        <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+      </div>
+      <pre class="code" id="code-server"><span class="kw">import</span> <span class="prop">express</span> <span class="kw">from</span> <span class="str">'express'</span>;
+<span class="kw">import</span> { <span class="type">cipherPolPaywall</span> }  <span class="kw">from</span> <span class="str">'cipher-pol-server'</span>;
+<span class="kw">import</span> { <span class="type">WithdrawalQueue</span> } <span class="kw">from</span> <span class="str">'cipher-pol-server'</span>;
+
+<span class="kw">const</span> <span class="prop">queue</span> <span class="op">=</span> <span class="kw">new</span> <span class="type">WithdrawalQueue</span>({
+  <span class="prop">account</span>,
+  <span class="prop">poolAddress</span>:     <span class="prop">POOL_ADDRESS</span>,
+  <span class="prop">vkPath</span>:          <span class="str">'./circuits/verification_key.json'</span>,
+  <span class="prop">garagaPath</span>:      <span class="str">'./vendor/garaga-v0.15.3'</span>,
+  <span class="prop">flushIntervalMs</span>: <span class="num">300_000</span>, <span class="cmt">// 5 min — privacy parameter</span>
+});
+<span class="prop">queue</span>.<span class="fn">start</span>();
+
+<span class="prop">app</span>.<span class="fn">use</span>(<span class="str">'/v1/generate'</span>, <span class="fn">cipherPolPaywall</span>({
+  <span class="prop">poolAddress</span>:    <span class="prop">POOL_ADDRESS</span>,
+  <span class="prop">requiredAmount</span>: <span class="num">100n</span>,
+  <span class="prop">token</span>:          <span class="str">'ETH'</span>,
+  <span class="prop">withdrawalQueue</span>: <span class="prop">queue</span>,
+}));
+
+<span class="cmt">// X-Payment-Proof stripped before downstream handlers</span>
+<span class="cmt">// nullifierHash tracked in-memory (use Redis for production)</span></pre>
+    </div>
+  </div>
+
+  <!-- PROTOCOL TAB -->
+  <div id="tab-protocol" class="tab-panel">
+    <div class="code-block-wrap">
+      <div class="code-block-header">
+        <span>x402 payment flow (HTTP)</span>
+        <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+      </div>
+      <pre class="code" id="code-protocol"><span class="cmt">// 1. Client probes the endpoint</span>
+<span class="fn">GET</span> /v1/generate
+
+<span class="cmt">// 2. Server responds with payment requirements</span>
+HTTP/1.1 <span class="num">402</span> Payment Required
+<span class="prop">X-Payment-Scheme</span>:  <span class="str">cipher-pol-groth16-v1</span>
+<span class="prop">X-Payment-To</span>:      <span class="str">0x5f71d8ddf...</span>
+<span class="prop">X-Payment-Amount</span>:  <span class="num">100</span>
+<span class="prop">X-Payment-Pool</span>:    <span class="str">0x5f71d8ddf...</span>
+
+<span class="cmt">// 3. Client generates ZK proof (4–6s, client-side)</span>
+<span class="cmt">//    and retries with proof in header</span>
+<span class="fn">POST</span> /v1/generate
+<span class="prop">X-Payment-Proof</span>: {
+  <span class="str">"zkProof"</span>: [<span class="str">"0x1a2b..."</span>, <span class="str">"0x3c4d..."</span>, ...],
+  <span class="str">"nullifierHash"</span>: <span class="str">"0x19687381..."</span>,
+  <span class="str">"publicInputs"</span>: { ... }
+}
+
+<span class="cmt">// 4. Server verifies proof, strips header, routes to handler</span>
+HTTP/1.1 <span class="num">200</span> OK
+{ <span class="str">"result"</span>: <span class="str">"..."</span> }
+
+<span class="cmt">// X-Payment-Proof contains ONLY:</span>
+<span class="cmt">//   zkProof (30 felts), nullifierHash, publicInputs</span>
+<span class="cmt">// NOT: txHash, depositor address, secret, nullifier</span></pre>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ PROTOCOL SPECS ═══ -->
+<section id="specs" class="fade-up">
+  <div class="section-label">Section 05</div>
+  <div class="section-divider"></div>
+  <h2 class="section-title">PROTOCOL SPECIFICATIONS</h2>
+  <p class="section-sub">Circuit parameters, proof system properties, and known limitations.</p>
+
+  <div class="specs-wrap">
+    <table class="specs-table">
+      <tbody>
+        <tr>
+          <td>Proof system</td>
+          <td class="spec-val">Groth16</td>
+        </tr>
+        <tr>
+          <td>Elliptic curve</td>
+          <td class="spec-val">BN254 (alt_bn128)</td>
+        </tr>
+        <tr>
+          <td>Hash function</td>
+          <td class="spec-val">Poseidon2 over BN254 Fr</td>
+        </tr>
+        <tr>
+          <td>Merkle tree depth</td>
+          <td class="spec-val">24 levels (16,777,216 deposits max)</td>
+        </tr>
+        <tr>
+          <td>Circuit constraints</td>
+          <td class="spec-val">14,282</td>
+        </tr>
+        <tr>
+          <td>Proof size</td>
+          <td class="spec-val">~256 bytes (8 G1/G2 points)</td>
+        </tr>
+        <tr>
+          <td>HTTP transport</td>
+          <td class="spec-val">30 felts (felt252 array)</td>
+        </tr>
+        <tr>
+          <td>garaga calldata</td>
+          <td class="spec-val">2,918 felts</td>
+        </tr>
+        <tr>
+          <td>Proof time (WASM)</td>
+          <td class="spec-val">4–6 seconds</td>
+        </tr>
+        <tr>
+          <td>Proof time (RapidSnark)</td>
+          <td class="spec-val">~100ms</td>
+        </tr>
+        <tr>
+          <td>Quantum resistant</td>
+          <td class="spec-bad">NO</td>
+        </tr>
+        <tr>
+          <td>Trusted setup</td>
+          <td class="spec-warn">1-party (Powers of Tau, demo only)</td>
+        </tr>
+        <tr>
+          <td>Verifier</td>
+          <td class="spec-val">garaga 0.15.3 on Starknet</td>
+        </tr>
+        <tr>
+          <td>Payment protocol</td>
+          <td class="spec-val">x402 (HTTP 402)</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ═══ HONEST LIMITS ═══ -->
+<section id="limits" class="fade-up">
+  <div class="section-label">Section 06</div>
+  <div class="section-divider"></div>
+  <h2 class="section-title limits-title">HONEST LIMITS</h2>
+  <p class="section-sub">This is a research implementation. The ZK proof is real. The privacy properties are real. The production readiness is not.</p>
+
+  <div class="limits-grid">
+    <div class="limit-card">
+      <div class="limit-card-num">Limit 01</div>
+      <div class="limit-card-title">ONE-PARTY TRUSTED SETUP</div>
+      <div class="limit-card-body">
+        The current <code>.zkey</code> was generated in a single-party Powers of Tau ceremony. If the toxic waste was not destroyed, proofs can be forged and the circuit can be broken without detection. For production: run a multi-party ceremony using Hermez Phase 1 ptau files.
+      </div>
+    </div>
+
+    <div class="limit-card">
+      <div class="limit-card-num">Limit 02</div>
+      <div class="limit-card-title">DEPOSITOR ADDRESS IS VISIBLE</div>
+      <div class="limit-card-body">
+        When you call <code>pool.deposit()</code>, your Starknet address appears in the Deposit event. Anyone watching the chain knows you participated in this pool. Wraith hides the <em>link</em> between your deposit and the withdrawal — not your participation.
+      </div>
+    </div>
+
+    <div class="limit-card">
+      <div class="limit-card-num">Limit 03</div>
+      <div class="limit-card-title">TIMING CORRELATION</div>
+      <div class="limit-card-body">
+        Depositing and withdrawing within seconds trivially links them via timestamps. The default <code>flushIntervalMs=300000</code> (5 minutes) batches withdrawals to break timing correlation. With <code>flushIntervalMs=0</code>, every HTTP request creates a 1-to-1 on-chain timestamp link that defeats the ZK unlinking.
+      </div>
+    </div>
+
+    <div class="limit-card">
+      <div class="limit-card-num">Limit 04</div>
+      <div class="limit-card-title">ANONYMITY SET SIZE</div>
+      <div class="limit-card-body">
+        If only 3 people have ever deposited into the pool, a chain observer narrows candidates to 3. Privacy scales directly with pool adoption. Do not use Wraith for sensitive payments when <code>pool.size &lt; 50</code>. At <code>pool.size = 1</code> there is zero anonymity.
+      </div>
+    </div>
+  </div>
+
+  <div class="verified-block">
+    <strong>What HAS been verified:</strong> deposit → Groth16 proof → garaga calldata → pool.withdraw() on Starknet devnet.<br>
+    8/8 on-chain tests pass · 28/28 e2e HTTP tests pass · 7/7 WithdrawalQueue phases pass
+  </div>
+</section>
+
+<!-- ═══ ROADMAP ═══ -->
+<section id="roadmap" class="fade-up">
+  <div class="section-label">Section 07</div>
+  <div class="section-divider"></div>
+  <h2 class="section-title">ROADMAP</h2>
+  <p class="section-sub">What exists today versus what the path to production looks like.</p>
+
+  <div class="roadmap-grid">
+    <div class="roadmap-card v1">
+      <div class="roadmap-card-title">v1 · NOW</div>
+      <ul class="roadmap-list">
+        <li>Groth16 / BN254 (Circom)</li>
+        <li>Link-private (deposit ↛ withdrawal)</li>
+        <li>Depositor visible at deposit time</li>
+        <li>1-party trusted setup (demo)</li>
+        <li>4–6s proof generation (WASM)</li>
+        <li>garaga 0.15.3 on-chain verifier</li>
+        <li>x402 HTTP payment protocol</li>
+      </ul>
+      <div class="roadmap-status">
+        <span>⬡</span> DEVNET VERIFIED
+      </div>
+    </div>
+
+    <div class="roadmap-card v2">
+      <div class="roadmap-card-title">v2 · PLANNED</div>
+      <ul class="roadmap-list">
+        <li>STARK proofs (no trusted setup)</li>
+        <li>Identity-private (depositor also hidden)</li>
+        <li>Quantum-resistant (hash-based)</li>
+        <li>Native Starknet (STRK20 standard)</li>
+        <li>~100ms proof generation</li>
+        <li>Multi-party ceremony for circuit</li>
+        <li>Redis-backed nullifier set</li>
+      </ul>
+      <div class="roadmap-status">
+        <span>⬡</span> AWAITING STRK20
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ FOOTER ═══ -->
+<footer>
+  <div class="footer-brand">
+    <div class="footer-brand-name"><span class="diamond">◈</span> WRAITH PROTOCOL</div>
+    <div class="footer-brand-sub">Research implementation. Not audited.</div>
+  </div>
+  <ul class="footer-links">
+    <li><a href="https://github.com/wraith-protocol" target="_blank" rel="noopener">GitHub</a></li>
+    <li><a href="THREAT_MODEL.md">Threat Model</a></li>
+    <li><a href="#mechanism">Circuit Source</a></li>
+  </ul>
+  <div class="footer-right">
+    Built on Starknet<br>
+    Groth16 / BN254
+  </div>
+</footer>
+
+<script>
+// ═══════════════════════════════════════════════════
+// HERO CANVAS — THE VOID
+// ═══════════════════════════════════════════════════
+(function() {
+  const canvas = document.getElementById('hero-canvas');
+  const ctx = canvas.getContext('2d');
+
+  function resize() {
+    canvas.width  = canvas.offsetWidth;
+    canvas.height = canvas.offsetHeight;
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  const N_DEPOSIT    = 11;
+  const N_WITHDRAWAL = 11;
+  const N_PARTICLES  = 32;
+
+  // Deterministic random seeded by index
+  function seededRand(seed) {
+    let s = seed * 9301 + 49297;
+    s = s % 233280;
+    return s / 233280;
+  }
+
+  // Build deposit nodes (left cluster)
+  function makeDepositNodes(w, h) {
+    const cx = w * 0.12;
+    const cy = h * 0.5;
+    const spread = Math.min(w, h) * 0.22;
+    const nodes = [];
+    for (let i = 0; i < N_DEPOSIT; i++) {
+      const angle = (i / N_DEPOSIT) * Math.PI * 2 + seededRand(i * 7) * 0.8;
+      const r     = spread * (0.4 + seededRand(i * 13) * 0.6);
+      nodes.push({
+        x: cx + Math.cos(angle) * r,
+        y: cy + Math.sin(angle) * r,
+        phase: seededRand(i * 3) * Math.PI * 2,
+      });
+    }
+    return nodes;
+  }
+
+  // Build withdrawal nodes (right cluster)
+  function makeWithdrawalNodes(w, h) {
+    const cx = w * 0.88;
+    const cy = h * 0.5;
+    const spread = Math.min(w, h) * 0.22;
+    const nodes = [];
+    for (let i = 0; i < N_WITHDRAWAL; i++) {
+      const angle = (i / N_WITHDRAWAL) * Math.PI * 2 + seededRand(i * 11 + 100) * 0.8;
+      const r     = spread * (0.4 + seededRand(i * 17 + 50) * 0.6);
+      nodes.push({
+        x: cx + Math.cos(angle) * r,
+        y: cy + Math.sin(angle) * r,
+        phase: seededRand(i * 5 + 20) * Math.PI * 2,
+      });
+    }
+    return nodes;
+  }
+
+  // Particles orbiting the void
+  function makeParticles(cx, cy, voidR) {
+    const pts = [];
+    for (let i = 0; i < N_PARTICLES; i++) {
+      pts.push({
+        angle: (i / N_PARTICLES) * Math.PI * 2,
+        r: voidR + 12 + seededRand(i * 23) * 40,
+        speed: 0.0004 + seededRand(i * 7) * 0.0006,
+        size:  0.8 + seededRand(i * 11) * 1.2,
+        alpha: 0.2 + seededRand(i * 13) * 0.5,
+      });
+    }
+    return pts;
+  }
+
+  // Dash animation progress per line
+  const lineProgress = [];
+  for (let i = 0; i < N_DEPOSIT + N_WITHDRAWAL; i++) {
+    lineProgress.push(seededRand(i * 19));
+  }
+
+  let t = 0;
+
+  function draw() {
+    t++;
+    const w = canvas.width;
+    const h = canvas.height;
+
+    ctx.clearRect(0, 0, w, h);
+
+    // Void center
+    const vx    = w * 0.5;
+    const vy    = h * 0.5;
+    const voidR = Math.min(w, h) * 0.095;
+
+    const pulse = 0.5 + 0.5 * Math.sin(t * 0.018);
+    const glowR = voidR * (1.5 + pulse * 0.6);
+
+    // Void radial glow
+    const grad = ctx.createRadialGradient(vx, vy, 0, vx, vy, glowR * 2.2);
+    grad.addColorStop(0,   'rgba(124,58,237,0.22)');
+    grad.addColorStop(0.4, 'rgba(124,58,237,0.08)');
+    grad.addColorStop(1,   'rgba(124,58,237,0)');
+    ctx.beginPath();
+    ctx.arc(vx, vy, glowR * 2.2, 0, Math.PI * 2);
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    const depositNodes    = makeDepositNodes(w, h);
+    const withdrawalNodes = makeWithdrawalNodes(w, h);
+
+    // Draw dashed lines: deposit → void (purple)
+    depositNodes.forEach((node, i) => {
+      const prog = ((lineProgress[i] + t * 0.0025) % 1);
+      const endX = vx + (node.x - vx) * (1 - prog) + (vx - vx) * prog;
+      const endY = vy + (node.y - vy) * (1 - prog) + (vy - vy) * prog;
+
+      // Interpolate along path from node to void edge
+      const dx = vx - node.x;
+      const dy = vy - node.y;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      const edgeX = vx - (dx / dist) * voidR;
+      const edgeY = vy - (dy / dist) * voidR;
+
+      ctx.beginPath();
+      ctx.setLineDash([4, 6]);
+      ctx.lineDashOffset = -(t * 0.7 + i * 11) % 10;
+      ctx.strokeStyle = `rgba(124,58,237,${0.12 + 0.12 * Math.sin(t * 0.03 + i)})`;
+      ctx.lineWidth = 1;
+      ctx.moveTo(node.x, node.y);
+      ctx.lineTo(edgeX, edgeY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    });
+
+    // Draw dashed lines: void → withdrawal (cyan)
+    withdrawalNodes.forEach((node, i) => {
+      const idx = N_DEPOSIT + i;
+      const dx = node.x - vx;
+      const dy = node.y - vy;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      const edgeX = vx + (dx / dist) * voidR;
+      const edgeY = vy + (dy / dist) * voidR;
+
+      ctx.beginPath();
+      ctx.setLineDash([4, 6]);
+      ctx.lineDashOffset = -(t * 0.6 + i * 13) % 10;
+      ctx.strokeStyle = `rgba(6,182,212,${0.10 + 0.10 * Math.sin(t * 0.025 + i + 1)})`;
+      ctx.lineWidth = 1;
+      ctx.moveTo(edgeX, edgeY);
+      ctx.lineTo(node.x, node.y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    });
+
+    // CRITICAL: NO direct line ever connects deposit to withdrawal node.
+    // All lines pass through the void only.
+
+    // Draw deposit nodes
+    depositNodes.forEach((node, i) => {
+      const a = 0.4 + 0.3 * Math.sin(t * 0.02 + node.phase);
+      ctx.beginPath();
+      ctx.arc(node.x, node.y, 3, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(241,245,249,${a})`;
+      ctx.fill();
+    });
+
+    // Deposit label
+    if (depositNodes.length > 0) {
+      const lx = depositNodes.reduce((s, n) => s + n.x, 0) / depositNodes.length;
+      const ly = Math.min(...depositNodes.map(n => n.y)) - 14;
+      ctx.font = '10px JetBrains Mono, monospace';
+      ctx.fillStyle = 'rgba(148,163,184,0.5)';
+      ctx.textAlign = 'center';
+      ctx.fillText('DEPOSIT', lx, ly);
+    }
+
+    // Draw withdrawal nodes
+    withdrawalNodes.forEach((node, i) => {
+      const a = 0.3 + 0.25 * Math.sin(t * 0.018 + node.phase + 1.5);
+      ctx.beginPath();
+      ctx.arc(node.x, node.y, 3, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(6,182,212,${a})`;
+      ctx.fill();
+    });
+
+    // Withdrawal label
+    if (withdrawalNodes.length > 0) {
+      const rx = withdrawalNodes.reduce((s, n) => s + n.x, 0) / withdrawalNodes.length;
+      const ry = Math.min(...withdrawalNodes.map(n => n.y)) - 14;
+      ctx.font = '10px JetBrains Mono, monospace';
+      ctx.fillStyle = 'rgba(6,182,212,0.45)';
+      ctx.textAlign = 'center';
+      ctx.fillText('WITHDRAWAL', rx, ry);
+    }
+
+    // Void dark core
+    const voidGrad = ctx.createRadialGradient(vx, vy, 0, vx, vy, voidR);
+    voidGrad.addColorStop(0, 'rgba(5,5,8,1)');
+    voidGrad.addColorStop(0.7, 'rgba(12,8,24,0.98)');
+    voidGrad.addColorStop(1, 'rgba(124,58,237,0.25)');
+    ctx.beginPath();
+    ctx.arc(vx, vy, voidR, 0, Math.PI * 2);
+    ctx.fillStyle = voidGrad;
+    ctx.fill();
+
+    // Void ring
+    ctx.beginPath();
+    ctx.arc(vx, vy, voidR, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(124,58,237,${0.4 + 0.25 * pulse})`;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Orbiting particles
+    const particles = makeParticles(vx, vy, voidR);
+    particles.forEach(p => {
+      p.angle += p.speed * t * 0.5; // pseudo-animate without state mutation
+      const angle = p.angle + t * p.speed;
+      const px = vx + Math.cos(angle) * p.r;
+      const py = vy + Math.sin(angle) * p.r;
+      ctx.beginPath();
+      ctx.arc(px, py, p.size, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(139,92,246,${p.alpha * (0.5 + 0.5 * Math.sin(t * 0.04 + angle))})`;
+      ctx.fill();
+    });
+
+    requestAnimationFrame(draw);
+  }
+
+  draw();
+})();
+
+// ═══════════════════════════════════════════════════
+// ANONYMITY POOL CANVAS
+// ═══════════════════════════════════════════════════
+(function() {
+  const canvas = document.getElementById('anon-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+
+  const W = 440;
+  const H = 440;
+  canvas.width  = W;
+  canvas.height = H;
+
+  const cx = W / 2;
+  const cy = H / 2 - 20;
+  const poolR = 145;
+  const N = 240;
+
+  // Deterministic dot positions
+  const dots = [];
+  for (let i = 0; i < N; i++) {
+    const seed1 = (i * 7919 + 42) % 997;
+    const seed2 = (i * 6271 + 101) % 997;
+    const a = (seed1 / 997) * Math.PI * 2;
+    const r = poolR * Math.sqrt(seed2 / 997);
+    dots.push({ x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r });
+  }
+
+  // "Your" deposit — one specific dot
+  const myDot = dots[57];
+  let t = 0;
+
+  function draw() {
+    t++;
+    ctx.clearRect(0, 0, W, H);
+
+    // Pool boundary
+    ctx.beginPath();
+    ctx.arc(cx, cy, poolR + 12, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(30,30,46,0.8)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // All dots except mine
+    dots.forEach((d, i) => {
+      if (d === myDot) return;
+      ctx.beginPath();
+      ctx.arc(d.x, d.y, 2, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(148,163,184,0.18)';
+      ctx.fill();
+    });
+
+    // My pulsing dot
+    const pulse = 0.5 + 0.5 * Math.sin(t * 0.06);
+    const glowR = 10 + pulse * 8;
+    const g = ctx.createRadialGradient(myDot.x, myDot.y, 0, myDot.x, myDot.y, glowR);
+    g.addColorStop(0, `rgba(124,58,237,${0.5 + pulse * 0.3})`);
+    g.addColorStop(1, 'rgba(124,58,237,0)');
+    ctx.beginPath();
+    ctx.arc(myDot.x, myDot.y, glowR, 0, Math.PI * 2);
+    ctx.fillStyle = g;
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(myDot.x, myDot.y, 3.5, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(139,92,246,${0.8 + pulse * 0.2})`;
+    ctx.fill();
+
+    // Arrow from pool to right edge with ZK proof box
+    const arrowStartX = cx + poolR + 14;
+    const arrowEndX   = W - 16;
+    const arrowY      = cy;
+    const boxW = 72;
+    const boxH = 22;
+    const boxX = arrowStartX + (arrowEndX - arrowStartX) / 2 - boxW / 2;
+    const boxY = arrowY - boxH / 2;
+
+    // Arrow line
+    ctx.beginPath();
+    ctx.moveTo(arrowStartX, arrowY);
+    ctx.lineTo(arrowEndX - 6, arrowY);
+    ctx.strokeStyle = 'rgba(148,163,184,0.25)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Arrowhead
+    ctx.beginPath();
+    ctx.moveTo(arrowEndX - 6, arrowY - 4);
+    ctx.lineTo(arrowEndX, arrowY);
+    ctx.lineTo(arrowEndX - 6, arrowY + 4);
+    ctx.fillStyle = 'rgba(148,163,184,0.25)';
+    ctx.fill();
+
+    // ZK Proof box
+    ctx.fillStyle = 'rgba(10,10,16,0.95)';
+    ctx.strokeStyle = 'rgba(124,58,237,0.5)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(boxX, boxY, boxW, boxH, 3);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.font = '9px JetBrains Mono, monospace';
+    ctx.fillStyle = 'rgba(139,92,246,0.85)';
+    ctx.textAlign = 'center';
+    ctx.fillText('ZK PROOF', boxX + boxW / 2, boxY + 14);
+
+    // WITHDRAWAL label
+    ctx.font = '9px JetBrains Mono, monospace';
+    ctx.fillStyle = 'rgba(6,182,212,0.5)';
+    ctx.textAlign = 'right';
+    ctx.fillText('WITHDRAWAL', W - 6, arrowY - 8);
+
+    // Pool label
+    ctx.font = '9px JetBrains Mono, monospace';
+    ctx.fillStyle = 'rgba(148,163,184,0.35)';
+    ctx.textAlign = 'center';
+    ctx.fillText('PRIVACY POOL', cx, cy + poolR + 26);
+
+    requestAnimationFrame(draw);
+  }
+
+  draw();
+})();
+
+// ═══════════════════════════════════════════════════
+// TAB SWITCHING
+// ═══════════════════════════════════════════════════
+function switchTab(btn, panelId) {
+  // Deactivate all buttons and panels in this group
+  const tabs = btn.closest('.tabs');
+  tabs.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+
+  const integrate = document.getElementById('integrate');
+  integrate.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById(panelId).classList.add('active');
+}
+
+// ═══════════════════════════════════════════════════
+// COPY BUTTONS
+// ═══════════════════════════════════════════════════
+function copyCode(btn) {
+  const wrap = btn.closest('.code-block-wrap');
+  const pre  = wrap.querySelector('pre');
+  const text = pre ? pre.innerText : '';
+
+  navigator.clipboard.writeText(text).then(() => {
+    btn.textContent = 'COPIED';
+    btn.classList.add('copied');
+    setTimeout(() => {
+      btn.textContent = 'COPY';
+      btn.classList.remove('copied');
+    }, 2000);
+  }).catch(() => {
+    // Fallback for older browsers
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    btn.textContent = 'COPIED';
+    btn.classList.add('copied');
+    setTimeout(() => {
+      btn.textContent = 'COPY';
+      btn.classList.remove('copied');
+    }, 2000);
+  });
+}
+
+// ═══════════════════════════════════════════════════
+// SCROLL FADE-IN (IntersectionObserver)
+// ═══════════════════════════════════════════════════
+(function() {
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('visible');
+        observer.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.08, rootMargin: '0px 0px -40px 0px' });
+
+  document.querySelectorAll('.fade-up').forEach(el => observer.observe(el));
+})();
+</script>
+<style>.fade-up{opacity:1!important;transform:none!important}</style></body>
+</html>

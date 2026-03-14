@@ -1,16 +1,16 @@
 /**
- * Wraith x402 Server Middleware
+ * Cipher Pol x402 Server Middleware
  *
- * Drop-in Express middleware for APIs that accept private Wraith payments.
+ * Drop-in Express middleware for APIs that accept private Cipher Pol payments.
  *
  * Usage:
  * ```ts
  * import express from 'express';
- * import { wraithPaywall } from 'wraith-agent/server';
+ * import { cipherPolPaywall } from 'cipher-pol-agent/server';
  *
  * const app = express();
  *
- * app.post('/api/completion', wraithPaywall({
+ * app.post('/api/completion', cipherPolPaywall({
  *   amount: 3000n,
  *   token: 'USDC',
  *   serverAddress: process.env.STARKNET_ADDRESS!,
@@ -59,8 +59,8 @@ import {
   verifyPaymentProofFields,
   parsePaymentHeader,
   X402_SCHEME,
-} from 'wraith-agent';
-import type { X402PaymentProof } from 'wraith-agent';
+} from 'cipher-pol-agent';
+import type { X402PaymentProof } from 'cipher-pol-agent';
 import { NullifierSet } from './nullifier-set.js';
 import type { INullifierSet } from './nullifier-set.js';
 import { WithdrawalQueue } from './withdrawal-queue.js';
@@ -110,8 +110,8 @@ export interface PaywallConfig {
   onVerified?: (proof: X402PaymentProof, req: Request) => void;
 }
 
-export interface WraithRequest extends Request {
-  wraith?: {
+export interface CipherPolRequest extends Request {
+  cipherPol?: {
     paid: true;
     amount: bigint;
     token: string;
@@ -124,15 +124,15 @@ export interface WraithRequest extends Request {
 }
 
 /**
- * Create an Express middleware that requires a valid Wraith ZK payment proof.
+ * Create an Express middleware that requires a valid CipherPol ZK payment proof.
  *
  * The returned middleware is stateful — it holds a NullifierSet and optionally
  * a WithdrawalQueue. Create it once and reuse across requests:
  *
- *   const paywall = wraithPaywall({ ... });
+ *   const paywall = cipherPolPaywall({ ... });
  *   app.post('/api/query', paywall, handler);
  */
-export function wraithPaywall(config: PaywallConfig) {
+export function cipherPolPaywall(config: PaywallConfig) {
   const nullifiers: INullifierSet = config.nullifierSet ?? new NullifierSet();
 
   // Optionally start a withdrawal queue
@@ -142,7 +142,7 @@ export function wraithPaywall(config: PaywallConfig) {
     queue.start();
   }
 
-  return async function wraithMiddleware(
+  return async function cipherPolMiddleware(
     req: Request,
     res: Response,
     next: NextFunction
@@ -228,7 +228,7 @@ export function wraithPaywall(config: PaywallConfig) {
     }
 
     // Attach payment info to request for downstream handlers
-    (req as WraithRequest).wraith = {
+    (req as CipherPolRequest).cipherPol = {
       paid: true,
       amount: config.amount,
       token: config.token,
@@ -252,11 +252,11 @@ export function wraithPaywall(config: PaywallConfig) {
 /**
  * Build the WWW-Authenticate challenge header.
  *
- * Format: Wraith-Starknet-v1 network="starknet-mainnet",token="USDC",amount="3000",payTo="0x...",poolAddress="0x..."
+ * Format: CipherPol-Starknet-v1 network="starknet-mainnet",token="USDC",amount="3000",payTo="0x...",poolAddress="0x..."
  */
 function buildChallenge(config: PaywallConfig): string {
   const parts = [
-    `Wraith-Starknet-v1`,
+    `CipherPol-Starknet-v1`,
     `network="${config.network ?? 'starknet-mainnet'}"`,
     `token="${config.token}"`,
     `amount="${config.amount}"`,

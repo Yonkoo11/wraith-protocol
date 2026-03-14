@@ -94,7 +94,7 @@ function assert(condition, msg) {
 }
 
 async function runTests() {
-  console.log('Wraith Protocol — Integration Tests\n');
+  console.log('Cipher Pol — Integration Tests\n');
 
   // ─── Test 1: Circuit artifacts exist ───────────────────────────────────────
   console.log('Test 1: Circuit artifacts');

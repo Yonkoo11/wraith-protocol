@@ -1,6 +1,6 @@
-// Core types for Wraith Protocol
+// Core types for Cipher Pol
 
-export interface WraithConfig {
+export interface CipherPolConfig {
   adapter: 'strk20' | 'privacy-pools';
   starknetRpcUrl?: string;
   litNetwork?: 'datil' | 'cayenne' | 'manzano';

@@ -1,7 +1,7 @@
 {
-  "name": "wraith-server",
+  "name": "cipher-pol-server",
   "version": "0.1.0",
-  "description": "Express middleware for accepting Wraith Protocol ZK payments",
+  "description": "Express middleware for accepting Cipher Pol ZK payments",
   "type": "module",
   "main": "dist/middleware.js",
   "types": "dist/middleware.d.ts",
@@ -39,7 +39,7 @@
   "dependencies": {
     "express": "^4.21.0",
     "starknet": "^6.24.1",
-    "wraith-agent": "file:.."
+    "cipher-pol-agent": "file:.."
   },
   "devDependencies": {
     "@types/express": "^5.0.0",

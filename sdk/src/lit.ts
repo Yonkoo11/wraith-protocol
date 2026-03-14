@@ -1,5 +1,5 @@
 /**
- * Lit Protocol integration — optional encrypted note storage for Wraith agents
+ * Lit Protocol integration — optional encrypted note storage for Cipher Pol agents
  *
  * Use case (v1):
  * - Agent generates (secret, nullifier) locally and produces the ZK proof client-side
@@ -7,7 +7,7 @@
  * - Lit is used ONLY for cross-device note recovery: agent encrypts the note bundle
  *   so it can store it off-device and decrypt it later from another session
  *
- * What Lit does NOT do in Wraith v1:
+ * What Lit does NOT do in Cipher Pol v1:
  * - Does NOT send (secret, nullifier) to the server for proof generation (that was
  *   the pre-v1 design and is a fundamental privacy flaw — removed)
  * - Does NOT gate proof generation on-chain

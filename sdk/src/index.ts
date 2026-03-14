@@ -1,5 +1,5 @@
-// Wraith Protocol — Agent SDK for private AI payments on Starknet
-export { WraithAgent } from './agent.js';
+// CipherPol Protocol — Agent SDK for private AI payments on Starknet
+export { CipherPolAgent } from './agent.js';
 export { PrivacyPoolsAdapter } from './adapters/privacy-pools.js';
 export { STRK20Adapter } from './adapters/strk20.js';
 export { PaymentBatcher } from './batcher.js';
@@ -45,7 +45,7 @@ export type { ProverArtifacts, WithdrawWitness, ProofResult } from './prover.js'
 
 // Core types
 export type {
-  WraithConfig,
+  CipherPolConfig,
   Note,
   PaymentIntent,
   PaymentReceipt,

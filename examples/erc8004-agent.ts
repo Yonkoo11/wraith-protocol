@@ -1,5 +1,5 @@
 /**
- * ERC-8004 Agent Example — Wraith Protocol
+ * ERC-8004 Agent Example — Cipher Pol
  *
  * Demonstrates an AI agent with:
  *   - ERC-8004 (Trustless Agents) identity
@@ -14,7 +14,7 @@
 
 import { Account, RpcProvider } from 'starknet';
 import {
-  WraithAgent,
+  CipherPolAgent,
   createAgentManifest,
   manifestToDataURI,
   generatePaymentReceipt,
@@ -23,7 +23,7 @@ import {
 
 // ── Step 1: Create an ERC-8004 agent identity ─────────────────────────────────
 //
-// Every Wraith agent can have an ERC-8004 identity that resolves to a
+// Every Cipher Pol agent can have an ERC-8004 identity that resolves to a
 // registration file. This file is indexed by identity registries, making
 // the agent discoverable and its payments verifiable.
 //
@@ -56,7 +56,7 @@ console.log('Agent URI (for Identity Registry registration):');
 console.log(agentURI.slice(0, 80) + '...');
 console.log();
 
-// ── Step 2: Create a WraithAgent with ERC-8004 identity ───────────────────────
+// ── Step 2: Create a Cipher PolAgent with ERC-8004 identity ───────────────────────
 //
 // When erc8004 is configured, the agent automatically:
 //   - Attaches its agentURI to every X-Payment-Proof header
@@ -65,7 +65,7 @@ console.log();
 const provider = new RpcProvider({ nodeUrl: 'https://starknet-mainnet.public.blastapi.io' });
 // const account = new Account(provider, process.env.STARKNET_ADDRESS!, process.env.STARKNET_KEY!);
 
-const agent = new WraithAgent(
+const agent = new CipherPolAgent(
   {
     adapter: 'privacy-pools',
     starknetRpcUrl: 'https://starknet-mainnet.public.blastapi.io',
@@ -82,11 +82,11 @@ const agent = new WraithAgent(
 // Show the agent manifest
 const identity = agent.getAgentManifest();
 if (identity) {
-  console.log('=== Agent Identity from WraithAgent ===');
+  console.log('=== Agent Identity from CipherPolAgent ===');
   console.log(`Name: ${identity.manifest.name}`);
   console.log(`x402Support: ${identity.manifest.x402Support}`);
-  console.log(`Adapter: ${identity.manifest.wraith.adapter}`);
-  console.log(`Privacy Level: ${identity.manifest.wraith.privacyLevel}`);
+  console.log(`Adapter: ${identity.manifest.cipherPol.adapter}`);
+  console.log(`Privacy Level: ${identity.manifest.cipherPol.privacyLevel}`);
   console.log();
 }
 

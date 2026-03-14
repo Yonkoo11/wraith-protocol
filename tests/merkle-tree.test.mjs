@@ -1,5 +1,5 @@
 /**
- * Wraith Protocol — Merkle Tree Unit Tests
+ * Cipher Pol — Merkle Tree Unit Tests
  *
  * Tests IncrementalMerkleTree, computeRootFromProof, buildTreeFromCommitments,
  * and ZERO_VALUES against known constants.
@@ -51,7 +51,7 @@ function testLeaf(n) {
   return BigInt(n + 1) * 0xdeadbeefn;
 }
 
-console.log('\nWraith Protocol — Merkle Tree Tests\n');
+console.log('\nCipher Pol — Merkle Tree Tests\n');
 
 // ── 1. Zero values ──────────────────────────────────────────────────────────
 

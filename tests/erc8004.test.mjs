@@ -36,7 +36,7 @@ console.log('\nERC-8004 (Trustless Agents) — Unit Tests\n');
 // ── Agent Manifest ────────────────────────────────────────────────────────────
 await test('createAgentManifest: correct type field (EIP-8004 registration-v1)', () => {
   const manifest = createAgentManifest(
-    { name: 'TestAgent', description: 'Test agent for Wraith Protocol' },
+    { name: 'TestAgent', description: 'Test agent for Cipher Pol' },
     'privacy-pools',
     'demo'
   );
@@ -55,7 +55,7 @@ await test('createAgentManifest: x402Support is true', () => {
   assert.equal(manifest.x402Support, true);
 });
 
-await test('createAgentManifest: wraith extension fields present', () => {
+await test('createAgentManifest: cipherPol extension fields present', () => {
   const manifest = createAgentManifest(
     {
       name: 'WeatherAgent',
@@ -65,10 +65,10 @@ await test('createAgentManifest: wraith extension fields present', () => {
     'privacy-pools',
     'demo'
   );
-  assert.equal(manifest.wraith.adapter, 'privacy-pools');
-  assert.equal(manifest.wraith.privacyLevel, 'demo');
-  assert.equal(manifest.wraith.starknetAddress, '0xdeadbeef');
-  assert.equal(manifest.wraith.sdkVersion, '0.1.0');
+  assert.equal(manifest.cipherPol.adapter, 'privacy-pools');
+  assert.equal(manifest.cipherPol.privacyLevel, 'demo');
+  assert.equal(manifest.cipherPol.starknetAddress, '0xdeadbeef');
+  assert.equal(manifest.cipherPol.sdkVersion, '0.1.0');
 });
 
 await test('createAgentManifest: services includes x402 entry', () => {
@@ -79,7 +79,7 @@ await test('createAgentManifest: services includes x402 entry', () => {
   );
   const x402 = manifest.services.find((s) => s.name === 'x402');
   assert.ok(x402, 'No x402 service entry found');
-  assert.equal(x402.version, 'wraith-v1');
+  assert.equal(x402.version, 'cipher-pol-v1');
 });
 
 await test('createAgentManifest: registrations populated when agentId + registry provided', () => {
@@ -141,7 +141,7 @@ await test('generatePaymentReceipt: required fields present', () => {
     3000n,
     'USDC'
   );
-  assert.equal(receipt.schema, 'erc8004-wraith-receipt-v1');
+  assert.equal(receipt.schema, 'erc8004-cipher-pol-receipt-v1');
   assert.equal(receipt.paymentProof.txHash, '0xabc123');
   assert.equal(receipt.paymentProof.chainId, 'starknet-sepolia');
   assert.equal(receipt.paymentProof.toAddress, '0xpool');
@@ -198,7 +198,7 @@ await test('validateReceipt: rejects wrong schema', () => {
 
 await test('validateReceipt: rejects missing txHash', () => {
   assert.equal(validateReceipt({
-    schema: 'erc8004-wraith-receipt-v1',
+    schema: 'erc8004-cipher-pol-receipt-v1',
     service: 'x',
     paymentProof: {},
     timestamp: 1,

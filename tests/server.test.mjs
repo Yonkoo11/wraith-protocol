@@ -1,5 +1,5 @@
 /**
- * Wraith Protocol — Server Middleware Unit Tests
+ * Cipher Pol — Server Middleware Unit Tests
  *
  * Tests the correct privacy-preserving x402 flow:
  *   - Agent generates ZK proof CLIENT-SIDE
@@ -11,7 +11,7 @@
  *   - Middleware accepts proof based on public inputs only (no txHash, no litCiphertext)
  *   - Duplicate nullifierHash rejected (replay prevention)
  *   - Server never sees depositor address or (secret, nullifier)
- *   - wraith.txHash is GONE — replaced by wraith.nullifierHash
+ *   - cipherPol.txHash is GONE — replaced by cipherPol.nullifierHash
  *
  * No devnet required — proof validation is based on decoded public inputs.
  */
@@ -20,7 +20,7 @@ import { strict as assert } from 'assert';
 import http from 'http';
 import express from 'express';
 
-const { wraithPaywall } = await import('../server/dist/middleware.js');
+const { cipherPolPaywall } = await import('../server/dist/middleware.js');
 const { buildPaymentHeader, X402_SCHEME } = await import('../dist/x402.js');
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -93,7 +93,7 @@ function startTestServer(requiredAmount = REQUIRED_AMOUNT) {
   const app = express();
   app.use(express.json());
 
-  app.post('/paid', wraithPaywall({
+  app.post('/paid', cipherPolPaywall({
     amount: requiredAmount,
     token: 'USDC',
     serverAddress: SERVER_ADDRESS,
@@ -105,10 +105,10 @@ function startTestServer(requiredAmount = REQUIRED_AMOUNT) {
     },
   }), (req, res) => {
     // Serialize bigints as strings for JSON response
-    const w = req.wraith;
+    const w = req.cipherPol;
     res.json({
       success: true,
-      wraith: w ? {
+      cipherPol: w ? {
         paid: w.paid,
         amount: w.amount?.toString(),
         token: w.token,
@@ -130,7 +130,7 @@ function startTestServer(requiredAmount = REQUIRED_AMOUNT) {
 
 // ── Tests ──────────────────────────────────────────────────────────────────
 
-console.log('\nWraith Protocol — Server Middleware Tests\n');
+console.log('\nCipher Pol — Server Middleware Tests\n');
 console.log('Testing correct privacy-preserving x402 flow:');
 console.log('  No txHash in proofs, no litCiphertext, no on-chain calls on hot path\n');
 
@@ -138,11 +138,11 @@ const { server, port, verified } = await startTestServer();
 const BASE = `http://127.0.0.1:${port}`;
 
 // 1. Challenge format
-await test('no proof → 402 with Wraith-Starknet-v1 challenge', async () => {
+await test('no proof → 402 with CipherPol-Starknet-v1 challenge', async () => {
   const res = await post(BASE + '/paid', {}, { prompt: 'test' });
   assert.equal(res.status, 402);
   const auth = res.headers.get('WWW-Authenticate');
-  assert(auth?.startsWith('Wraith-Starknet-v1'), `got: ${auth}`);
+  assert(auth?.startsWith('CipherPol-Starknet-v1'), `got: ${auth}`);
   assert(auth.includes(`payTo="${SERVER_ADDRESS}"`), `payTo missing: ${auth}`);
   assert(auth.includes('poolAddress='), `poolAddress missing: ${auth}`);
   assert(auth.includes('USDC'), `token missing: ${auth}`);
@@ -228,11 +228,11 @@ await test('valid proof → 200 (recipient+amount match server expectations)', a
   const body = JSON.parse(text);
   assert.equal(body.success, true);
 
-  // Verify wraith fields on the request
-  assert.equal(body.wraith.paid, true);
-  assert(body.wraith.nullifierHash, 'nullifierHash missing from wraith context');
+  // Verify cipherPol fields on the request
+  assert.equal(body.cipherPol.paid, true);
+  assert(body.cipherPol.nullifierHash, 'nullifierHash missing from cipherPol context');
   // txHash is gone — the server never knew which on-chain deposit this was
-  assert.equal(body.wraith.txHash, undefined, 'PRIVACY LEAK: txHash should not appear in wraith context');
+  assert.equal(body.cipherPol.txHash, undefined, 'PRIVACY LEAK: txHash should not appear in cipherPol context');
 });
 
 // 4. Privacy invariants
@@ -280,7 +280,7 @@ await test('different nullifierHash accepted (distinct payment)', async () => {
 });
 
 // 6. ERC-8004 passthrough
-await test('ERC-8004 agentId + agentURI passed through to wraith context', async () => {
+await test('ERC-8004 agentId + agentURI passed through to cipherPol context', async () => {
   const NULLIFIER_3 = '0xfedcba0987654321fedcba0987654321fedcba09';
   const proof = buildMockProof({
     nullifierHash: NULLIFIER_3,
@@ -294,8 +294,8 @@ await test('ERC-8004 agentId + agentURI passed through to wraith context', async
   }, {});
   assert.equal(res.status, 200);
   const body = await res.json();
-  assert.equal(body.wraith.agentId, '42');
-  assert(body.wraith.agentURI?.startsWith('data:'), `expected data: URI, got: ${body.wraith.agentURI}`);
+  assert.equal(body.cipherPol.agentId, '42');
+  assert(body.cipherPol.agentURI?.startsWith('data:'), `expected data: URI, got: ${body.cipherPol.agentURI}`);
 });
 
 // 7. Overpayment allowed

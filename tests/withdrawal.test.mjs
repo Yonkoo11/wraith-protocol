@@ -27,7 +27,7 @@
  *   - rpc-proxy.mjs on :5051
  *   - garaga 0.15.3 at /tmp/garaga-v0.15.3
  *   - python3.10 at /opt/homebrew/bin/python3.10
- *   - Compiled Sierra in /tmp/wraith-pool-deploy/target/dev/
+ *   - Compiled Sierra in /tmp/cipher-pol-deploy/target/dev/
  *   - server/dist/ compiled (cd server && npx tsc)
  *
  * Run: node scripts/rpc-proxy.mjs & && node tests/withdrawal.test.mjs
@@ -51,7 +51,7 @@ const { RpcProvider, Account, constants, CallData, stark } = await import(
 );
 
 // Import WithdrawalQueue from compiled server dist.
-// The server dist imports ../../dist/x402.js which resolves to wraith-protocol/dist/x402.js.
+// The server dist imports ../../dist/x402.js which resolves to cipher-pol/dist/x402.js.
 const { WithdrawalQueue } = await import(
   path.join(projectRoot, 'server/dist/withdrawal-queue.js')
 );
@@ -63,9 +63,9 @@ const ETH_ADDR = '0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e00
 const ACC_ADDR = '0x34ba56f92265f0868c57d3fe72ecab144fc96f97954bbbc4252cef8e8a979ba';
 const ACC_PK   = '0xb137668388dbe9acdfa3bc734cc2c469';
 
-const VERIFIER_SIERRA    = '/tmp/wraith-pool-deploy/target/dev/pool_Groth16VerifierBN254.contract_class.json';
-const POOL_SIERRA        = '/tmp/wraith-pool-deploy/target/dev/pool_Pool.contract_class.json';
-const ECIP_SIERRA        = '/tmp/wraith-pool-deploy/target/dev/pool_UniversalECIP.contract_class.json';
+const VERIFIER_SIERRA    = '/tmp/cipher-pol-deploy/target/dev/pool_Groth16VerifierBN254.contract_class.json';
+const POOL_SIERRA        = '/tmp/cipher-pol-deploy/target/dev/pool_Pool.contract_class.json';
+const ECIP_SIERRA        = '/tmp/cipher-pol-deploy/target/dev/pool_UniversalECIP.contract_class.json';
 const STARKLI_ACCT       = '/tmp/devnet-account.json';
 const VERIFIER_CASM_HASH = '0x4ab33c632f8f86806bfc63a7316a9dc3de26a5226732ad764eea9b4f0d2b495';
 const POOL_CASM_HASH     = '0x668d8e903eaf4a0199c302fb03f64b2474b2fc323c222d57a48a45234b40e76';
@@ -228,7 +228,7 @@ function assert(cond, msg) {
 }
 
 async function run() {
-  console.log('Wraith Protocol — WithdrawalQueue End-to-End Test\n');
+  console.log('Cipher Pol — WithdrawalQueue End-to-End Test\n');
   console.log('Critical path: 30-felt HTTP transport → garaga subprocess → pool.withdraw()\n');
 
   const provider = new RpcProvider({ nodeUrl: RPC_URL });

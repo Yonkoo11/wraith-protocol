@@ -1459,13 +1459,13 @@ footer {
           <span>agent.ts</span>
           <button class="copy-btn" onclick="copyCode(this)">COPY</button>
         </div>
-        <pre class="code" id="code-agent"><span class="kw">import</span> { <span class="type">WraithAgent</span> } <span class="kw">from</span> <span class="str">'wraith-agent'</span>;
+        <pre class="code" id="code-agent"><span class="kw">import</span> { <span class="type">CipherPolAgent</span> } <span class="kw">from</span> <span class="str">'cipher-pol-agent'</span>;
 <span class="kw">import</span> { <span class="type">Account</span>, <span class="type">RpcProvider</span> } <span class="kw">from</span> <span class="str">'starknet'</span>;
 
 <span class="kw">const</span> <span class="prop">provider</span> <span class="op">=</span> <span class="kw">new</span> <span class="type">RpcProvider</span>({ <span class="prop">nodeUrl</span>: <span class="prop">RPC_URL</span> });
 <span class="kw">const</span> <span class="prop">account</span>  <span class="op">=</span> <span class="kw">new</span> <span class="type">Account</span>(<span class="prop">provider</span>, <span class="prop">ADDRESS</span>, <span class="prop">PRIVATE_KEY</span>);
 
-<span class="kw">const</span> <span class="prop">agent</span> <span class="op">=</span> <span class="kw">new</span> <span class="type">WraithAgent</span>({
+<span class="kw">const</span> <span class="prop">agent</span> <span class="op">=</span> <span class="kw">new</span> <span class="type">CipherPolAgent</span>({
   <span class="prop">adapter</span>:        <span class="str">'privacy-pools'</span>,
   <span class="prop">poolAddress</span>:   <span class="prop">POOL_ADDRESS</span>,
   <span class="prop">starknetRpcUrl</span>: <span class="prop">RPC_URL</span>,
@@ -1489,8 +1489,8 @@ footer {
           <button class="copy-btn" onclick="copyCode(this)">COPY</button>
         </div>
         <pre class="code" id="code-server"><span class="kw">import</span> <span class="prop">express</span> <span class="kw">from</span> <span class="str">'express'</span>;
-<span class="kw">import</span> { <span class="type">wraithPaywall</span> }  <span class="kw">from</span> <span class="str">'wraith-server'</span>;
-<span class="kw">import</span> { <span class="type">WithdrawalQueue</span> } <span class="kw">from</span> <span class="str">'wraith-server/withdrawal-queue'</span>;
+<span class="kw">import</span> { <span class="type">cipherPolPaywall</span> }  <span class="kw">from</span> <span class="str">'cipher-pol-server'</span>;
+<span class="kw">import</span> { <span class="type">WithdrawalQueue</span> } <span class="kw">from</span> <span class="str">'cipher-pol-server/withdrawal-queue'</span>;
 
 <span class="kw">const</span> <span class="prop">queue</span> <span class="op">=</span> <span class="kw">new</span> <span class="type">WithdrawalQueue</span>({
   <span class="prop">account</span>,
@@ -1501,7 +1501,7 @@ footer {
 });
 <span class="prop">queue</span>.<span class="fn">start</span>();
 
-<span class="prop">app</span>.<span class="fn">use</span>(<span class="str">'/v1/generate'</span>, <span class="fn">wraithPaywall</span>({
+<span class="prop">app</span>.<span class="fn">use</span>(<span class="str">'/v1/generate'</span>, <span class="fn">cipherPolPaywall</span>({
   <span class="prop">poolAddress</span>:    <span class="prop">POOL_ADDRESS</span>,
   <span class="prop">requiredAmount</span>: <span class="num">100n</span>,
   <span class="prop">token</span>:          <span class="str">'ETH'</span>,
@@ -1524,7 +1524,7 @@ footer {
 
 <span class="cmt">// 2. Server responds with payment requirements</span>
 HTTP/1.1 <span class="num">402</span> Payment Required
-<span class="prop">X-Payment-Scheme</span>:  <span class="str">wraith-groth16-v1</span>
+<span class="prop">X-Payment-Scheme</span>:  <span class="str">cipher-pol-groth16-v1</span>
 <span class="prop">X-Payment-To</span>:      <span class="str">0x5f71d8ddf...</span>
 <span class="prop">X-Payment-Amount</span>:  <span class="num">100</span>
 <span class="prop">X-Payment-Pool</span>:    <span class="str">0x5f71d8ddf...</span>

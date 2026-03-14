@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>D1 — Merkle Proof · Wraith Protocol</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Inter:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#050508;--purple:#7c3aed;--purple-bright:#8b5cf6;
+  --text:#f1f5f9;--text-2:#94a3b8;--text-3:#475569;
+  --border:#1a1a2e;--border-bright:#252540;
+  --mono:'JetBrains Mono','SF Mono',monospace;
+  --sans:'Inter',system-ui,sans-serif;--rs:4px;
+}
+html,body{height:100%}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);overflow:hidden}
+nav{position:fixed;top:0;left:0;right:0;z-index:100;height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:rgba(5,5,8,0.85);backdrop-filter:blur(20px);border-bottom:1px solid var(--border)}
+.nav-logo{font-size:15px;font-weight:700;letter-spacing:.04em;text-decoration:none;color:var(--text);display:flex;align-items:center;gap:7px}
+.nav-logo .d{color:var(--purple)}
+.nav-links{display:flex;list-style:none}
+.nav-links a{font-size:13px;font-weight:500;color:var(--text-2);text-decoration:none;padding:6px 14px;transition:color .15s}
+.nav-links a:hover{color:var(--text)}
+.hero{position:relative;height:100vh;overflow:hidden;display:flex;align-items:center}
+#hero-canvas{position:absolute;inset:0;width:100%;height:100%}
+.hero-content{position:relative;z-index:2;padding:0 52px;max-width:580px;margin-top:56px}
+.hero-label{font-size:11px;font-weight:600;letter-spacing:.16em;color:var(--text-3);text-transform:uppercase;margin-bottom:20px;display:flex;align-items:center;gap:8px}
+.hero-label .d{color:var(--purple);font-size:13px}
+.hero-headline{font-size:clamp(34px,5.2vw,62px);font-weight:700;line-height:1.05;letter-spacing:-.03em;margin-bottom:18px}
+.hero-sub{font-size:17px;color:var(--text-2);line-height:1.65;margin-bottom:28px;max-width:460px}
+.hero-sub strong{color:var(--text);font-weight:600}
+.hero-stack{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:32px}
+.hero-tag{font-family:var(--mono);font-size:11px;font-weight:500;color:var(--text-3);background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:var(--rs);padding:3px 9px;letter-spacing:.04em}
+.hero-ctas{display:flex;gap:12px}
+.btn-primary{font-size:14px;font-weight:600;color:#fff;background:var(--purple);border:1px solid var(--purple-bright);border-radius:var(--rs);padding:13px 26px;text-decoration:none;display:inline-flex;align-items:center;gap:7px;transition:background .15s}
+.btn-primary:hover{background:var(--purple-bright)}
+.btn-secondary{font-size:14px;font-weight:600;color:var(--text-2);background:transparent;border:1px solid var(--border-bright);border-radius:var(--rs);padding:13px 26px;text-decoration:none;display:inline-flex;align-items:center;gap:7px;transition:color .15s,border-color .15s}
+.btn-secondary:hover{color:var(--text);border-color:var(--text-3)}
+.badge{position:fixed;bottom:24px;right:24px;font-family:var(--mono);font-size:11px;color:var(--text-3);background:rgba(5,5,8,.92);border:1px solid var(--border-bright);border-radius:var(--rs);padding:6px 12px;z-index:200;letter-spacing:.04em}
+</style>
+</head>
+<body>
+<nav>
+  <a class="nav-logo" href="#"><span class="d">◈</span> WRAITH PROTOCOL</a>
+  <ul class="nav-links">
+    <li><a href="#">Protocol</a></li>
+    <li><a href="#">Docs</a></li>
+    <li><a href="#">GitHub ↗</a></li>
+  </ul>
+</nav>
+<section class="hero">
+  <canvas id="hero-canvas"></canvas>
+  <div class="hero-content">
+    <div class="hero-label"><span class="d">◈</span> WRAITH PROTOCOL</div>
+    <h1 class="hero-headline">Cryptographic guarantee.<br>Not a promise.</h1>
+    <p class="hero-sub">Private payments for AI agents. <strong>The deposit is unlinked from the payment</strong> — by Groth16 zero-knowledge proof, not policy.</p>
+    <div class="hero-stack">
+      <span class="hero-tag">Groth16</span>
+      <span class="hero-tag">BN254</span>
+      <span class="hero-tag">Poseidon2</span>
+      <span class="hero-tag">x402</span>
+      <span class="hero-tag">Starknet</span>
+    </div>
+    <div class="hero-ctas">
+      <a href="#" class="btn-primary">Read the Protocol ↓</a>
+      <a href="#" class="btn-secondary">GitHub ↗</a>
+    </div>
+  </div>
+</section>
+<div class="badge">D1 — Merkle Proof Visualization</div>
+<script>
+(function() {
+  const canvas = document.getElementById('hero-canvas');
+  const ctx = canvas.getContext('2d');
+  const LEVELS = 5;
+  let nodes = [], edges = [], w = 0, h = 0;
+
+  function seededRand(s) { s = (s * 9301 + 49297) % 233280; return s / 233280; }
+
+  function buildLayout() {
+    w = canvas.width  = canvas.offsetWidth  || window.innerWidth  || 1440;
+    h = canvas.height = canvas.offsetHeight || window.innerHeight || 900;
+    nodes = []; edges = [];
+    // Tree in right 58% of canvas — visible alongside hero text
+    const x0 = w * 0.38, x1 = w * 0.97;
+    const y0 = h * 0.09, y1 = h * 0.91;
+    for (let lv = 0; lv < LEVELS; lv++) {
+      const count = 1 << lv;
+      const y = y0 + (y1 - y0) * lv / (LEVELS - 1);
+      for (let j = 0; j < count; j++) {
+        nodes.push({ x: x0 + (x1 - x0) * (j + 0.5) / count, y, level: lv, j });
+      }
+    }
+    for (let i = 1; i < nodes.length; i++) edges.push({ from: i, to: Math.floor((i - 1) / 2) });
+  }
+  buildLayout();
+  window.addEventListener('resize', buildLayout);
+
+  const LEAF_OFFSET = 15, LEAF_COUNT = 16;
+  function pathToRoot(idx) {
+    const p = [idx]; let c = idx;
+    while (c > 0) { c = Math.floor((c - 1) / 2); p.push(c); }
+    return p;
+  }
+  function leafHash(idx) { return '0x' + ((idx * 0x4f3d9b + 0xa1c) & 0xffffff).toString(16).padStart(6,'0'); }
+
+  const S = { IDLE:0, PROVING:1, VERIFIED:2, NULLIFY:3 };
+  let state = S.IDLE, frame = 0, t = 0;
+  let activeLeaf = -1, activePath = [], proofEdge = 0, edgeProgress = 0;
+  let nullifyAlpha = 1, rootGlow = 0;
+  const EDGE_DUR = 28, VERIFY_DUR = 55, NULLIFY_DUR = 40, IDLE_DUR = 150;
+
+  function startProof() {
+    activeLeaf   = LEAF_OFFSET + (Math.floor(seededRand(t % 97 * 13 + 7) * LEAF_COUNT));
+    activePath   = pathToRoot(activeLeaf);
+    proofEdge    = 0; edgeProgress = 0; nullifyAlpha = 1; rootGlow = 0;
+    state = S.PROVING; frame = 0;
+  }
+
+  function draw() {
+    t++; frame++;
+    if (w === 0) { requestAnimationFrame(draw); return; }
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = '#050508'; ctx.fillRect(0, 0, w, h);
+
+    // State transitions
+    if (state === S.IDLE) {
+      if (frame > IDLE_DUR) startProof();
+    } else if (state === S.PROVING) {
+      edgeProgress += 1 / EDGE_DUR;
+      if (edgeProgress >= 1) {
+        edgeProgress = 0; proofEdge++;
+        if (proofEdge >= activePath.length - 1) { state = S.VERIFIED; frame = 0; rootGlow = 1; }
+      }
+    } else if (state === S.VERIFIED) {
+      rootGlow = Math.max(0, rootGlow - 0.8 / VERIFY_DUR);
+      if (frame > VERIFY_DUR) { state = S.NULLIFY; frame = 0; }
+    } else if (state === S.NULLIFY) {
+      nullifyAlpha = Math.max(0, 1 - frame / NULLIFY_DUR);
+      if (frame > NULLIFY_DUR + 55) { state = S.IDLE; frame = 0; activeLeaf = -1; activePath = []; }
+    }
+
+    const breath = 0.5 + 0.5 * Math.sin(t * 0.007);
+
+    // Draw edges
+    edges.forEach(edge => {
+      const A = nodes[edge.from], B = nodes[edge.to];
+      const pp = activePath.indexOf(edge.from);
+      const onPath = pp >= 0 && pp < activePath.length - 1 && activePath[pp + 1] === edge.to;
+      let alpha = 0.05 + 0.015 * breath, lw = 0.5, color;
+      if (onPath) {
+        if (pp < proofEdge) { alpha = 0.60; lw = 1.0; color = `rgba(124,58,237,${alpha})`; }
+        else if (pp === proofEdge && state === S.PROVING) { alpha = 0.15 + 0.45 * edgeProgress; lw = 1.0; color = `rgba(124,58,237,${alpha})`; }
+        else { color = `rgba(255,255,255,${alpha})`; }
+      } else { color = `rgba(255,255,255,${alpha})`; }
+      ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = lw;
+      ctx.moveTo(A.x, A.y); ctx.lineTo(B.x, B.y); ctx.stroke();
+    });
+
+    // Travelling pulse
+    if (state === S.PROVING && proofEdge < activePath.length - 1) {
+      const A = nodes[activePath[proofEdge]], B = nodes[activePath[proofEdge + 1]];
+      const e = edgeProgress < 0.5 ? 2*edgeProgress*edgeProgress : 1-Math.pow(-2*edgeProgress+2,2)/2;
+      const px = A.x + (B.x - A.x) * e, py = A.y + (B.y - A.y) * e;
+      // Glow halo
+      const g = ctx.createRadialGradient(px, py, 0, px, py, 12);
+      g.addColorStop(0, 'rgba(139,92,246,0.45)'); g.addColorStop(1, 'rgba(139,92,246,0)');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(px, py, 12, 0, Math.PI*2); ctx.fill();
+      // Core
+      ctx.beginPath(); ctx.arc(px, py, 2.8, 0, Math.PI*2);
+      ctx.fillStyle = 'rgba(210,195,255,0.98)'; ctx.fill();
+    }
+
+    // Draw nodes
+    nodes.forEach((node, i) => {
+      const pp = activePath.indexOf(i);
+      const lit = pp >= 0 && pp <= proofEdge && state !== S.IDLE;
+      let r = node.level === 0 ? 5 : node.level === 4 ? 3.5 : 3;
+      let color;
+
+      if (i === 0 && rootGlow > 0) {
+        const g = ctx.createRadialGradient(node.x, node.y, 0, node.x, node.y, 40);
+        g.addColorStop(0, `rgba(124,58,237,${0.42 * rootGlow})`);
+        g.addColorStop(0.5, `rgba(100,40,200,${0.16 * rootGlow})`);
+        g.addColorStop(1, 'rgba(124,58,237,0)');
+        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(node.x, node.y, 40, 0, Math.PI*2); ctx.fill();
+        color = 'rgba(220,200,255,0.96)'; r = 6.5;
+      } else if (i === activeLeaf && state === S.NULLIFY) {
+        color = `rgba(139,92,246,${0.88 * nullifyAlpha})`; r = 4.5;
+      } else if (lit) {
+        color = 'rgba(139,92,246,0.90)'; r *= 1.3;
+      } else {
+        color = `rgba(255,255,255,${0.10 + 0.04 * breath})`;
+      }
+      ctx.beginPath(); ctx.arc(node.x, node.y, r, 0, Math.PI*2);
+      ctx.fillStyle = color; ctx.fill();
+    });
+
+    // Labels
+    ctx.font = '8px JetBrains Mono, monospace'; ctx.textAlign = 'center';
+    if (activeLeaf >= 0 && nodes[activeLeaf] && nullifyAlpha > 0) {
+      const lf = nodes[activeLeaf];
+      ctx.fillStyle = `rgba(139,92,246,${0.55 * nullifyAlpha})`;
+      ctx.fillText(leafHash(activeLeaf), lf.x, lf.y + 16);
+    }
+    if (state !== S.IDLE) {
+      ctx.fillStyle = 'rgba(255,255,255,0.18)';
+      ctx.fillText('merkle_root', nodes[0].x, nodes[0].y - 12);
+    }
+
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+</script>
+</body>
+</html>

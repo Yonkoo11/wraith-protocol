@@ -1,4 +1,4 @@
-/// WraithAgent — on-chain component of the Wraith Protocol
+/// CipherPolAgent — on-chain component of the CipherPol Protocol
 ///
 /// Manages agent identity, payment channel state, and settlement.
 /// v1: wraps Ekubo Privacy Pool for demo-grade privacy
@@ -10,7 +10,7 @@
 /// - For full identity privacy, wait for STRK20 (github.com/starkware-libs)
 
 #[starknet::contract]
-pub mod WraithAgent {
+pub mod CipherPolAgent {
     use starknet::{ContractAddress, get_caller_address};
     use starknet::storage::{
         StoragePointerReadAccess, StoragePointerWriteAccess,
@@ -93,10 +93,10 @@ pub mod WraithAgent {
     }
 
     // -------------------------------------------------------------------------
-    // IWraithAgent Implementation
+    // ICipherPolAgent Implementation
     // -------------------------------------------------------------------------
     #[abi(embed_v0)]
-    impl WraithAgentImpl of super::super::interfaces::IWraithAgent<ContractState> {
+    impl CipherPolAgentImpl of super::super::interfaces::ICipherPolAgent<ContractState> {
         /// Open a payment channel with a counterparty API.
         /// Agent deposits capacity into the privacy pool upfront.
         /// Off-chain payments are made within the channel without on-chain txs.
