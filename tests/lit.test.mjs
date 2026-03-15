@@ -59,8 +59,9 @@ if (existsSync(CAPACITY_FILE) && existsSync(WALLET_FILE)) {
   capacityWallet = new ethers.Wallet(savedWallet.privateKey, provider);
   console.log(GR(`Capacity Credits NFT: token ${capacityTokenId} (owner: ${capacityWallet.address})`));
 } else {
-  console.log(YL('No capacity credits — decrypt steps will be attempted but may be rate-limited.'));
-  console.log(`  Run: node scripts/lit-setup.mjs  (then fund wallet from faucet)\n`);
+  console.log(YL('No capacity credits — decrypt steps will be rate-limited (steps 4-5 unverified).'));
+  console.log(YL('  Chronicle Yellowstone faucet non-functional; Datil network sunsets 2026-04-01.'));
+  console.log(`  Migration to Lit v3 Chipotle required for full verification.\n`);
 }
 
 // ── Test wallet (throwaway — no funds needed) ─────────────────────────────────
@@ -293,16 +294,16 @@ if (fail > 0) {
 }
 
 if (skip > 0) {
-  console.log(YL('PARTIAL VERIFICATION (Capacity Credits not set up):'));
+  console.log(YL('PARTIAL VERIFICATION (decrypt unverified — infrastructure blocked):'));
   console.log('  ✓ LitNodeClient connects to Datil');
   console.log('  ✓ encryptString with EVM access condition');
   console.log('  ✓ getSessionSigs SIWE flow');
-  console.log('  ~ decryptToString — rate-limited (not a code failure)');
-  console.log('  ~ Access condition enforcement — inconclusive (rate-limited)');
+  console.log('  ~ decryptToString — skipped (capacity credits required, faucet non-functional)');
+  console.log('  ~ Access control enforcement — skipped (same blocker)');
   console.log('');
-  console.log('TO VERIFY DECRYPT:');
-  console.log('  node scripts/lit-setup.mjs   # follow the faucet instructions');
-  console.log('  node tests/lit.test.mjs      # re-run with capacity credits');
+  console.log('BLOCKER: Chronicle Yellowstone faucet non-functional.');
+  console.log('  Datil network sunsets 2026-04-01.');
+  console.log('  Full verification requires migration to Lit v3 Chipotle.');
   process.exit(0);  // not a failure — infrastructure constraint
 }
 

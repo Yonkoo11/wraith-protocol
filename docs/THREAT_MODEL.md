@@ -295,5 +295,9 @@ What has NOT been done:
 - Load/performance testing under concurrent proof generation
 - Production nullifier set (Redis-backed) — in-memory only (lost on restart)
 - RapidSnark integration — snarkjs WASM is 4-6s, RapidSnark is ~100ms
-- Lit Protocol integration against a live Lit network (written, not tested)
+- Lit Protocol integration against a live Lit network (written, not tested against live decrypt)
+  - Steps 1-3 (connect, encrypt, getSessionSigs) verified against Datil production
+  - Steps 4-5 (decrypt, access control enforcement) blocked by capacity credits requirement
+  - Datil network sunsets April 1 2026; migration to Lit v3 Chipotle required before then
+  - Chronicle Yellowstone faucet non-functional; capacity credits unobtainable via standard path
 - claimRefund() path — partial withdrawals circuit-correct but SDK blocks them (funds would lock)
