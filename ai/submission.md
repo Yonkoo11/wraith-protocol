@@ -55,8 +55,13 @@ deposit transaction hash, or which of the pool's deposits funded this payment.
 - **Proof generation**: snarkjs WASM, 4-6 seconds per proof
 - **Payment protocol**: x402 (HTTP 402 challenge/response)
 - **Chain**: Starknet (Cairo contracts, devnet verified)
-- **Lit Protocol**: Optional encrypted note storage via ReceiptVault (steps 1-3 verified against
-  live Datil network; decrypt/access-control pending Chipotle v3 migration)
+- **Lit Protocol / ReceiptVault**: The ReceiptVault contract (Cairo) encrypts payment receipts
+  via Storacha + Lit Protocol, allowing agents to recover notes cross-session using their ETH key.
+  The encryption path and SIWE session flow are verified against live Datil network (steps 1-3 pass).
+  The decrypt path is written and tested against the Datil API but cannot be fully verified live:
+  Datil requires capacity credits (Chronicle Yellowstone faucet non-functional) and sunsets
+  2026-04-01. Migration to Lit v3 Chipotle is the next step. Frame this for David Sneider:
+  the architecture is correct and the decrypt code is there — the gap is infrastructure, not design.
 
 ## What's Been Verified
 
