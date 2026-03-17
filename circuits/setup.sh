@@ -14,7 +14,7 @@
 #   npx snarkjs v0.7.x (from node_modules)
 #
 # Usage:
-#   cd wraith-protocol && bash circuits/setup.sh
+#   cd cipher-pol && bash circuits/setup.sh
 
 set -e
 
