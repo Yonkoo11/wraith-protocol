@@ -26,7 +26,7 @@ The core mechanism is the same as Tornado Cash v2 applied to HTTP payments
 ```
 1. DEPOSIT (on-chain, public)
    Agent -> pool.deposit(commitment, amount)
-   commitment = poseidon2(poseidon2(secret, nullifier), amount)
+   commitment = Poseidon(Poseidon(secret, nullifier), amount)
 
    On-chain after deposit:
    - Agent's Starknet address is visible (emitted in Deposit event)
@@ -137,7 +137,7 @@ at time T+N (hours, days) with many deposits between.
 **Amount correlation:**
 If you deposit exactly 3000 USDC and the API costs exactly 3000 USDC, and yours
 is the only deposit of that amount, the withdrawal amount narrows candidates.
-Cipher Pol's PaymentBatcher rounds amounts to standard buckets to mitigate this.
+A PaymentBatcher that rounds amounts to standard buckets is written (`sdk/src/batcher.ts`) but not yet integrated into the payment flow. In v1, amount correlation is unmitigated.
 
 **Traffic analysis:**
 The API server sees that *someone* called the API at timestamp T. Combined with
@@ -175,7 +175,7 @@ default (5 minutes) is a reasonable balance for typical API pricing.
 |----------|-------|
 | Proof system | Groth16 |
 | Elliptic curve | BN254 (alt_bn128) |
-| Hash function | Poseidon2 over BN254 Fr field |
+| Hash function | Poseidon over BN254 Fr field |
 | Tree depth | 24 (supports 16M+ deposits) |
 | Quantum resistant | NO — BN254 pairings are vulnerable to quantum computers |
 | Proof size | ~256 bytes (8 G1/G2 points) |
